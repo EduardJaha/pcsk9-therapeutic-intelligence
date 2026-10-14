@@ -188,7 +188,10 @@ def curate_snapshot(session, snapshot: Path, review_sheet: Path) -> dict:
     reasons = Counter()
     accepted = []
     candidate_assays = set()
+    assay_outcomes = {}
     for row in payload["activities"]:
+        outcome = assay_outcomes.setdefault(row.get("assay_chembl_id") or "unknown",
+                                            {"approved_activity_rows": 0, "excluded_by_reason": Counter()})
         issue = activity_issue(row)
         if issue is None:
             assay_id = row["assay_chembl_id"]
@@ -200,8 +203,10 @@ def curate_snapshot(session, snapshot: Path, review_sheet: Path) -> dict:
                     issue = "assay_not_approved"
         if issue:
             reasons[issue] += 1
+            outcome["excluded_by_reason"][issue] += 1
         else:
             accepted.append(row)
+            outcome["approved_activity_rows"] += 1
     pending = sorted(assay_id for assay_id in candidate_assays if review.get(assay_id) not in {"include", "exclude"})
     status = "pending_review" if pending else "ready" if accepted else "reviewed_empty"
     inserted = 0
@@ -219,7 +224,10 @@ def curate_snapshot(session, snapshot: Path, review_sheet: Path) -> dict:
         records = measurement_records(rows)
     stats = {"scanned": len(payload["activities"]), "approved_activity_rows": len(accepted),
              "excluded_by_reason": dict(sorted(reasons.items())), "pending_assays": pending,
-             "snapshot_retrieved_at": payload.get("retrieved_at")}
+             "snapshot_retrieved_at": payload.get("retrieved_at"),
+             "assay_outcomes": {assay_id: {"approved_activity_rows": outcome["approved_activity_rows"],
+                                            "excluded_by_reason": dict(sorted(outcome["excluded_by_reason"].items()))}
+                                for assay_id, outcome in sorted(assay_outcomes.items())}}
     version = create_version(session, source="chembl_curated", status=status, target_id=TARGET_CHEMBL,
                              endpoint_group=ENDPOINT_GROUP, snapshot_blob=snapshot_blob,
                              review_blob=review_blob, policy=curation_policy(), records=records, stats=stats)

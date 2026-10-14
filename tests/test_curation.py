@@ -11,6 +11,7 @@ from cvti.db import init_db, make_engine, session_factory
 from cvti.ml import train
 from cvti.models import DatasetVersion, Measurement
 from cvti.provenance import verify_version, version_rows
+from cvti.reports import assay_reviews
 
 
 def activity(activity_id, assay_id="CHEMBL_A", **changes):
@@ -104,6 +105,9 @@ def test_review_gate_and_curation_report(tmp_path):
         verify_version(first_version)
         assert first_version.review_blob == review.read_bytes()
         assert first_version.policy_json["activity"]["type"] == "IC50"
+        reviewed_assays = assay_reviews(first_version)
+        assert reviewed_assays[0]["activity_exclusions"] == {
+            "incompatible_endpoint": 1, "invalid_or_inconsistent_pchembl": 1}
         assert version_rows(first_version)[0].activity_id == "1"
         with pytest.raises(ValueError, match="manually reviewed"):
             train(session, "chembl")

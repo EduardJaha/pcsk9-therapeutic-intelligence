@@ -1,6 +1,8 @@
 from contextlib import asynccontextmanager
+from typing import Literal
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
@@ -9,6 +11,7 @@ from cvti.ingest import ingest_fixture
 from cvti.ml import predict, train
 from cvti.models import DatasetVersion, Experiment, Measurement, Prediction, TargetEvidence
 from cvti.provenance import verify_version, version_summary
+from cvti.reports import assay_reviews, experiment_report, render_experiment_report
 
 
 class PredictRequest(BaseModel):
@@ -91,6 +94,36 @@ def create_app(database_url: str | None = None, artifact_dir: str | None = None)
             except ValueError as exc:
                 raise HTTPException(409, str(exc)) from exc
             return {**version_summary(version), "policy": version.policy_json}
+
+    @app.get("/dataset-versions/{version_id}/assays")
+    def get_assay_reviews(version_id: int):
+        with factory() as session:
+            version = session.get(DatasetVersion, version_id)
+            if version is None:
+                raise HTTPException(404, "Dataset version not found")
+            try:
+                return {"dataset_version_id": version.id, "status": version.status,
+                        "assays": assay_reviews(version)}
+            except ValueError as exc:
+                raise HTTPException(409, str(exc)) from exc
+
+    @app.get("/experiments/{experiment_id}/report")
+    def get_experiment_report(experiment_id: int, format: Literal["json", "markdown"] = "json"):
+        with factory() as session:
+            run = session.get(Experiment, experiment_id)
+            if run is None:
+                raise HTTPException(404, "Experiment not found")
+            version = session.get(DatasetVersion, run.dataset_version_id)
+            if version is None:
+                raise HTTPException(409, "Experiment dataset version is missing")
+            try:
+                report = experiment_report(run, version)
+            except ValueError as exc:
+                raise HTTPException(409, str(exc)) from exc
+            if format == "markdown":
+                return Response(render_experiment_report(report), media_type="text/markdown",
+                                headers={"Content-Disposition": f'attachment; filename="experiment-{run.id}.md"'})
+            return report
 
     @app.get("/measurements")
     def list_measurements(limit: int = 100):

@@ -122,12 +122,20 @@ The public APIs can be slow or unavailable. `HTTP_MAX_RETRIES`, `HTTP_BACKOFF_SE
 
 The built-in fixture is not sourced from either provider. Its source is `synthetic_fixture`; it is kept separate from `chembl` in training and shown as synthetic in the dashboard. Back up `data/cvti.db` before resetting local data: it now contains the only in-database copies of dataset versions and experiment history.
 
+## Dashboard review and exports
+
+Under **Assay review**, choose a stored ChEMBL dataset version to see each assay's source document links, recorded inclusion decision, exclusion reason, activity count, and retained activity count. Filter by decision and choose an assay to read its complete saved description and review note. **Download assay review CSV** exports every assay in the selected version. This view reads preserved inputs; it does not apply today's rules to an older review. An inclusion decision alone does not guarantee that any activities survived the selection rules. New curation runs also record activity exclusion counts per assay; older versions retain their reviewer notes and any metadata exclusions recorded in their review CSV.
+
+Under **Inspect experiment evaluation**, select an experiment and download its **Markdown** or **JSON** report. Each report contains the experiment's own dataset version, source and checksums, stored selection rules, associated assay decisions and source links, evaluation results, and research limitations. Choosing another version in the assay view does not change the experiment export. Synthetic experiments have no ChEMBL assay review; legacy exports explicitly identify missing original provenance. All review controls are read-only; update a review CSV and curate it to record a new version.
+
 ## API and model
 
 - `GET /health`, `GET /summary`
 - `POST /fixtures/load`, `GET /measurements`, `GET /evidence`
 - `POST /experiments` with `{"source":"synthetic_fixture"}` or `{"source":"chembl_curated"}`; `GET /experiments`
 - `GET /dataset-versions`, `GET /dataset-versions/{id}`; `POST /experiments` also accepts `dataset_version_id`
+- `GET /dataset-versions/{id}/assays` for recorded assay review details
+- `GET /experiments/{id}/report` for JSON, or `?format=markdown` for a downloadable report; exports verify dataset integrity
 - `POST /predict` with `{"smiles":"CC1CCCCC1"}`
 
 Molecules are parsed and converted to RDKit charge-parent canonical SMILES. An invalid structure or a molecule with no ring scaffold is rejected. The feature vector is a 2048-bit radius-2 Morgan fingerprint. The illustrative positive class is `pChEMBL IC50 >= 6` (IC50 at or below 1 µM). Duplicate standardized molecules are aggregated by median pChEMBL; contradictory molecules crossing the label threshold are excluded. Five distinct, deterministic holdouts reserve 25% of the scaffold groups and keep Bemis–Murcko scaffolds and identical molecules apart. The fraction of molecules held out can vary with scaffold group sizes. Each split must contain both label classes in train and test; the report gives the number of attempted and rejected partitions. Five valid distinct partitions are required, otherwise training stops. The fixed-seed 150-tree Random Forest is fitted separately on each split. The experiment stores dataset and per-split class counts, balanced accuracy, ROC AUC, average precision, confusion counts, scaffold counts, and zero-overlap checks. It also reports the median and range across splits. After evaluation, a separate prediction model is refit on all molecules in the versioned dataset.

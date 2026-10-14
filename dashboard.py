@@ -1,8 +1,11 @@
 """Minimal local research dashboard. Start FastAPI before this app."""
+import json
 import os
 
 import httpx
 import streamlit as st
+
+from cvti.reports import render_assay_review_csv, render_experiment_report
 
 
 API = os.getenv("API_URL", "http://127.0.0.1:8000").rstrip("/")
@@ -33,7 +36,7 @@ st.caption("The fixture is entirely synthetic. Real records require the document
 versions = call("GET", "/dataset-versions")
 curated_versions = [v for v in versions or [] if v["source"] == "chembl_curated"]
 if versions is not None and (not curated_versions or curated_versions[0]["status"] != "ready"):
-    st.info("No current reviewed real-data training set is available. The split results below test the software with synthetic molecules only.")
+    st.info("The current ChEMBL review is not ready for real-data training. Synthetic demo experiments remain available.")
 left, right = st.columns(2)
 if left.button("Load offline demo fixture"):
     result = call("POST", "/fixtures/load")
@@ -45,6 +48,46 @@ if right.button("Train baseline on synthetic fixture"):
         st.success(f"Experiment {result['id']} saved")
         st.json(result["metrics"])
 
+st.subheader("Assay review")
+if curated_versions:
+    review_version = st.selectbox("Assay review dataset version", curated_versions,
+                                  format_func=lambda v: f"Version {v['id']} — {v['status']} ({v['created_at']})")
+    st.caption(f"Snapshot retrieved: {review_version['stats'].get('snapshot_retrieved_at') or 'not recorded'}")
+    review_payload = call("GET", f"/dataset-versions/{review_version['id']}/assays")
+    if review_payload:
+        assays = review_payload["assays"]
+        st.caption("Decisions and sources come from this version's saved snapshot and review sheet. Included assays can still have activities removed by selection rules.")
+        st.write({"Assays": len(assays), **{decision: sum(row["decision"] == decision for row in assays)
+                                          for decision in ("include", "exclude", "pending")}})
+        decision_filter = st.selectbox("Filter assay decisions", ["all", "include", "exclude", "pending"])
+        visible = [row for row in assays if decision_filter == "all" or row["decision"] == decision_filter]
+        if visible:
+            st.dataframe([{"Assay": row["assay_id"], "Assay link": row["assay_url"],
+                           "Source documents": ", ".join(doc["id"] for doc in row["source_documents"]),
+                           "Decision": row["decision"], "Activities": row["activity_count"],
+                           "Selected activities": row["selected_activity_count"],
+                           "Exclusion reason": row["exclusion_reason"]} for row in visible],
+                         column_config={"Assay link": st.column_config.LinkColumn("ChEMBL assay", display_text="Open assay")},
+                         hide_index=True)
+            detail = st.selectbox("Inspect assay", visible, format_func=lambda row: row["assay_id"])
+            st.write("Assay description:", detail["description"] or "Not recorded")
+            st.write("Recorded review note:", detail["review_note"] or "Not recorded")
+            for source in detail["source_documents"]:
+                st.markdown(f"[ChEMBL source document {source['id']}]({source['url']})")
+            if not detail["source_documents"]:
+                st.caption("No source document was recorded for this assay.")
+            if detail["recorded_machine_issue"]:
+                st.write("Recorded assay metadata exclusion:", detail["recorded_machine_issue"])
+            if detail["activity_exclusions"]:
+                st.write("Recorded activity exclusions:", detail["activity_exclusions"])
+        else:
+            st.info("No assays match this decision filter.")
+        st.download_button("Download assay review CSV (all assays)", render_assay_review_csv(assays),
+                           file_name=f"dataset-{review_version['id']}-assay-review.csv", mime="text/csv")
+else:
+    st.info("No ChEMBL review version is stored yet. Import a snapshot and review sheet to inspect assays here.")
+
+st.subheader("Experiments and reports")
 runs = call("GET", "/experiments") or []
 if runs:
     def reported_score(run, name):
@@ -80,6 +123,14 @@ if runs:
         st.caption("The saved prediction model was refit on all molecules after evaluation.")
     else:
         st.info("This older experiment has only one scaffold holdout. Retrain to see repeated evaluation.")
+    report = call("GET", f"/experiments/{selected['id']}/report")
+    if report:
+        st.caption(f"The report uses experiment {selected['id']}'s dataset version {report['dataset_version']['id']}, including its recorded selection rules and assay decisions.")
+        markdown_export, json_export = st.columns(2)
+        markdown_export.download_button("Download experiment report (Markdown)", render_experiment_report(report),
+                                        file_name=f"experiment-{selected['id']}.md", mime="text/markdown")
+        json_export.download_button("Download experiment report (JSON)", json.dumps(report, indent=2),
+                                    file_name=f"experiment-{selected['id']}.json", mime="application/json")
 
 st.subheader("Explore a molecule")
 smiles = st.text_input("SMILES", value="CC1CCCCC1")

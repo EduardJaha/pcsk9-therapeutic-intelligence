@@ -17,6 +17,7 @@ from cvti.ingest import SourceUnavailable, ingest_live, request_json
 from cvti.models import DatasetVersion, Experiment, Measurement, TargetEvidence
 from cvti.ml import _evaluation_splits, _examples
 from cvti.provenance import verify_version
+from cvti.reports import experiment_report
 
 
 def test_offline_api_vertical_slice(tmp_path):
@@ -57,6 +58,15 @@ def test_offline_api_vertical_slice(tmp_path):
             scores = [split[metric] for split in evaluation["splits"]]
             assert evaluation["summary"][metric]["min"] == min(scores)
             assert evaluation["summary"][metric]["max"] == max(scores)
+        report = client.get(f"/experiments/{data['id']}/report").json()
+        assert report["experiment"]["metrics"] == metrics
+        assert report["dataset_version"]["id"] == data["dataset_version_id"]
+        assert report["assay_reviews"] == []
+        markdown = client.get(f"/experiments/{data['id']}/report?format=markdown")
+        assert markdown.status_code == 200
+        assert "Dataset classes:" in markdown.text
+        assert "| 5 |" in markdown.text
+        assert "synthetic_fixture" in markdown.text
         prediction = client.post("/predict", json={"smiles": "CC1CCCCC1"})
         assert prediction.status_code == 200, prediction.text
         assert 0 <= prediction.json()["probability_exploratory_activity"] <= 1
@@ -165,7 +175,11 @@ def test_migration_preserves_legacy_database(tmp_path):
         indexes = {item["name"] for item in inspect(connection).get_indexes("measurements")}
         assert "ix_measurements_source_target_type" in indexes
     with session_factory(engine)() as session:
-        verify_version(session.get(DatasetVersion, legacy_id))
+        version = session.get(DatasetVersion, legacy_id)
+        verify_version(version)
+        report = experiment_report(session.scalar(select(Experiment)), version)
+        assert report["dataset_version"]["status"] == "legacy_unverified"
+        assert any("original snapshot" in note for note in report["limitations"])
 
 
 def test_training_uses_stored_dataset_version_after_source_rows_change(tmp_path):
