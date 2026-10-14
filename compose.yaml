@@ -13,5 +13,36 @@ services:
       test: ["CMD-SHELL", "pg_isready -U cvti -d cvti"]
       interval: 5s
       retries: 10
+  api:
+    build: .
+    image: cvti-mvp:local
+    environment:
+      DATABASE_URL: postgresql+psycopg://cvti:${POSTGRES_PASSWORD:-local_dev_only}@db:5432/cvti
+      ARTIFACT_DIR: /app/data/artifacts
+    ports:
+      - "127.0.0.1:${API_HOST_PORT:-8000}:8000"
+    volumes:
+      - artifacts:/app/data/artifacts
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+  dashboard:
+    build: .
+    image: cvti-mvp:local
+    command: ["streamlit", "run", "dashboard.py", "--server.address", "0.0.0.0", "--server.port", "8501", "--server.headless", "true"]
+    environment:
+      API_URL: http://api:8000
+      STREAMLIT_BROWSER_GATHER_USAGE_STATS: "false"
+    ports:
+      - "127.0.0.1:${DASHBOARD_HOST_PORT:-8501}:8501"
+    depends_on:
+      api:
+        condition: service_healthy
 volumes:
   pgdata:
+  artifacts:

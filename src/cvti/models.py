@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
+from sqlalchemy import DateTime, Float, ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from cvti.db import Base
@@ -12,7 +12,11 @@ def utcnow():
 
 class Measurement(Base):
     __tablename__ = "measurements"
-    __table_args__ = (UniqueConstraint("source", "source_record_id"),)
+    __table_args__ = (
+        UniqueConstraint("source", "source_record_id"),
+        Index("ix_measurements_source_target_type", "source", "target_id", "activity_type"),
+        Index("ix_measurements_assay_id", "assay_id"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     source: Mapped[str] = mapped_column(String(40))
@@ -31,7 +35,10 @@ class Measurement(Base):
 
 class TargetEvidence(Base):
     __tablename__ = "target_evidence"
-    __table_args__ = (UniqueConstraint("target_id", "disease_id"),)
+    __table_args__ = (
+        UniqueConstraint("target_id", "disease_id"),
+        Index("ix_target_evidence_target_score", "target_id", "association_score"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     target_id: Mapped[str] = mapped_column(String(40))
@@ -45,6 +52,7 @@ class TargetEvidence(Base):
 
 class Experiment(Base):
     __tablename__ = "experiments"
+    __table_args__ = (Index("ix_experiments_source_created", "data_source", "created_at"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
@@ -62,6 +70,7 @@ class Experiment(Base):
 
 class Prediction(Base):
     __tablename__ = "predictions"
+    __table_args__ = (Index("ix_predictions_experiment_id", "experiment_id"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     experiment_id: Mapped[int] = mapped_column(ForeignKey("experiments.id"))

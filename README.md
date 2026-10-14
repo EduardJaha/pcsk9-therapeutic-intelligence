@@ -15,17 +15,19 @@ Open Targets GraphQL ┘                            │
                                                  └─ FastAPI ─ Streamlit dashboard
 ```
 
-This is one application package (`src/cvti`), one database, and local model artifacts. `compose.yaml` runs only PostgreSQL. There are no cloud GPUs, queues, Kubernetes components, or LLM training jobs.
+This is one application package (`src/cvti`), one database, and local model artifacts. Docker Compose can run PostgreSQL alone or the full API and dashboard stack. There are no cloud GPUs, queues, Kubernetes components, or LLM training jobs.
 
 ## Quick start: macOS and Linux
 
-Use Python 3.11, 3.12, or 3.13. From this repository:
+Use Python 3.12, the version used for the Phase 1 smoke test. From this repository:
 
 ```bash
-python3 -m venv .venv
+python3.12 -m venv .venv
 source .venv/bin/activate
-python -m pip install -e '.[dev]'
+python -m pip install uv==0.13.1
+uv sync --frozen --extra dev
 cp .env.example .env
+cvti db upgrade
 cvti ingest --source fixture
 cvti train --source synthetic_fixture
 cvti predict 'CC1CCCCC1'
@@ -42,24 +44,26 @@ Open the dashboard URL printed by Streamlit. The API docs are at `http://127.0.0
 
 ## Quick start: Windows PowerShell
 
-Install Python 3.11–3.13 first, then run:
+Install Python 3.12 first, then run:
 
 ```powershell
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
-python -m pip install -e ".[dev]"
+python -m pip install uv==0.13.1
+uv sync --frozen --extra dev
 Copy-Item .env.example .env
+cvti db upgrade
 cvti ingest --source fixture
 cvti train --source synthetic_fixture
 cvti predict "CC1CCCCC1"
 uvicorn cvti.api:app --reload --host 127.0.0.1 --port 8000
 ```
 
-In a second PowerShell window, activate `.venv` and run `streamlit run dashboard.py`. If PowerShell blocks activation, use `.\.venv\Scripts\python.exe` and `.\.venv\Scripts\cvti.exe` directly.
+In a second PowerShell window, activate `.venv` and run `streamlit run dashboard.py`. If PowerShell blocks activation, use `.\.venv\Scripts\python.exe` and `.\.venv\Scripts\cvti.exe` directly. The committed `uv.lock` records exact dependency versions across supported platforms; `uv sync --frozen` installs from that lockfile.
 
-## Optional PostgreSQL
+## Docker and PostgreSQL
 
-SQLite is the default. To use PostgreSQL, install Docker, then:
+SQLite is the default and needs no Docker. To use PostgreSQL while running Python on your computer, install Docker. On macOS, [Colima](https://github.com/abiosoft/colima/blob/main/README.md) can provide the local Docker runtime; run `colima start` before the Compose commands and `colima stop` when finished. Start PostgreSQL with:
 
 ```bash
 docker compose up -d db
@@ -72,7 +76,24 @@ POSTGRES_PASSWORD=local_dev_only
 DATABASE_URL=postgresql+psycopg://cvti:local_dev_only@127.0.0.1:5432/cvti
 ```
 
-Then run the same `cvti` and server commands. For PostgreSQL, the password in the URL must match `POSTGRES_PASSWORD`. The database is created by Compose; application tables are created automatically at startup. This MVP has no schema migrations yet. Do not expose the unauthenticated development API to the internet.
+Run `cvti db upgrade`, then the same `cvti` and server commands. For PostgreSQL, the password in the URL must match `POSTGRES_PASSWORD` (URL-encode special characters in the URL). The database is created by Compose; Alembic applies the versioned schema. Docker's [health-check dependency](https://docs.docker.com/compose/how-tos/startup-order/) keeps the API from starting before PostgreSQL is ready.
+
+To run the complete stack in Docker, stop any locally running API/dashboard on ports 8000/8501, then run:
+
+```bash
+docker compose up --build -d
+docker compose ps
+docker compose exec api cvti ingest --source fixture
+docker compose exec api cvti train --source synthetic_fixture
+```
+
+Open `http://127.0.0.1:8501` for Streamlit and `http://127.0.0.1:8000/docs` for the API. `docker compose down` stops the stack; its named PostgreSQL and model-artifact volumes retain data. Do not expose the unauthenticated development API to the internet.
+
+If ports 8000/8501 are already in use, set `API_HOST_PORT=18000` and `DASHBOARD_HOST_PORT=18501` in `.env` before starting Compose, then open the corresponding host ports. The containers continue to communicate on their internal ports.
+
+## Database migrations
+
+`cvti db upgrade` creates a fresh schema or applies pending Alembic revisions. API startup and other CLI commands call the same upgrade routine. Existing databases made by the first MVP are stamped at the initial revision only when their tables match that baseline, then upgraded without deleting their records. A mismatched schema stops with an error for review. New schema changes should be added as migration files in `migrations/`; do not edit an old revision after it has been used. See the [Alembic migration guide](https://alembic.sqlalchemy.org/en/latest/autogenerate.html).
 
 ## Real public data
 
@@ -111,10 +132,10 @@ The prediction response shows whether the exact molecule or its scaffold occurre
 
 ## Development milestones
 
-1. **Done here:** offline fixture-to-dashboard vertical slice, source ingestion, persistence, scaffold-aware baseline, and tests.
+1. **Done here:** locked Python environment, versioned SQLite/PostgreSQL schema, Docker stack, offline fixture-to-dashboard vertical slice, source ingestion, persistence, scaffold-aware baseline, and tests.
 2. Review assay-level ChEMBL curation with a domain expert; define a consistent endpoint and minimum data quality rules.
 3. Add frozen public-data snapshots, dataset versioning, temporal/external validation, model calibration, and uncertainty analysis.
-4. Add migration tooling, authentication, and deployment monitoring only when remote collaboration or hosting is needed.
+4. Add authentication and deployment monitoring when remote collaboration or hosting is needed.
 5. Seek experimental validation of any candidate hypotheses before making biological or therapeutic claims.
 
 ## Tests

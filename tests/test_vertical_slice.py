@@ -1,15 +1,19 @@
 import httpx
 import pytest
 from types import SimpleNamespace
+from pathlib import Path
+from alembic import command
+from alembic.config import Config
 from fastapi.testclient import TestClient
-from sqlalchemy import select
+from pydantic import ValidationError
+from sqlalchemy import inspect, select, text
 
 from cvti.api import create_app
 from cvti.chemistry import standardize
 from cvti.config import Settings
 from cvti.db import init_db, make_engine, session_factory
 from cvti.ingest import SourceUnavailable, ingest_live, request_json
-from cvti.models import Measurement
+from cvti.models import Measurement, TargetEvidence
 from cvti.ml import _examples
 
 
@@ -96,3 +100,33 @@ def test_conflicting_duplicate_molecule_is_excluded():
     examples, conflicts = _examples(rows)
     assert examples == []
     assert conflicts == 1
+
+
+def test_migration_preserves_legacy_database(tmp_path):
+    url = f"sqlite:///{tmp_path / 'legacy.db'}"
+    config = Config(str(Path(__file__).parents[1] / "alembic.ini"))
+    config.attributes["database_url"] = url
+    command.upgrade(config, "2cf3a3fb0c41")
+    engine = make_engine(url)
+    with session_factory(engine)() as session:
+        session.add(TargetEvidence(target_id="ENSG00000169174", target_symbol="PCSK9",
+                                   disease_id="TEST", disease_name="Preserve me",
+                                   association_score=0.5, source_url="https://example.test"))
+        session.commit()
+    with engine.begin() as connection:
+        connection.execute(text("DROP TABLE alembic_version"))
+    init_db(engine)
+    with engine.connect() as connection:
+        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0b0d802d3cb4"
+        assert connection.execute(text("SELECT disease_name FROM target_evidence")).scalar_one() == "Preserve me"
+        indexes = {item["name"] for item in inspect(connection).get_indexes("measurements")}
+        assert "ix_measurements_source_target_type" in indexes
+
+
+def test_invalid_configuration_is_rejected():
+    with pytest.raises(ValidationError):
+        Settings(database_url="mysql://example/db")
+    with pytest.raises(ValidationError):
+        Settings(database_url="not-a-url")
+    with pytest.raises(ValidationError):
+        Settings(http_max_retries=-1)

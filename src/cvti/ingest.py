@@ -69,7 +69,10 @@ def _save_measurement(session, row: dict, source: str) -> bool:
 
 
 def ingest_fixture(session, path: Path | None = None) -> dict:
-    path = path or Path(__file__).parents[2] / "fixtures" / "pcsk9_synthetic.json"
+    if path is None:
+        path = Path(__file__).parents[2] / "fixtures" / "pcsk9_synthetic.json"
+        if not path.is_file():
+            path = Path.cwd() / "fixtures" / "pcsk9_synthetic.json"
     payload = json.loads(path.read_text())
     count = 0
     for row in payload["activities"]:
