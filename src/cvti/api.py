@@ -16,7 +16,7 @@ class PredictRequest(BaseModel):
 
 
 class TrainRequest(BaseModel):
-    source: str = Field(default="synthetic_fixture", pattern="^(synthetic_fixture|chembl)$")
+    source: str = Field(default="synthetic_fixture", pattern="^(synthetic_fixture|chembl_curated)$")
 
 
 def create_app(database_url: str | None = None, artifact_dir: str | None = None) -> FastAPI:

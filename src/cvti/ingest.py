@@ -32,7 +32,10 @@ def request_json(client: httpx.Client, method: str, url: str, settings: Settings
                 delay = float(retry_after) if retry_after and retry_after.replace(".", "", 1).isdigit() else settings.http_backoff_seconds * 2**attempt
                 time.sleep(min(delay, 60) + random.uniform(0, 0.2))
                 continue
-            response.raise_for_status()
+            try:
+                response.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                raise SourceUnavailable(f"{url}: HTTP {response.status_code}") from exc
             return response.json()
         except (httpx.TimeoutException, httpx.NetworkError) as exc:
             if attempt == settings.http_max_retries:
@@ -49,7 +52,7 @@ def _save_measurement(session, row: dict, source: str) -> bool:
         return False
     if row.get("standard_relation") != "=" or row.get("standard_units") != "nM":
         return False
-    if row.get("data_validity_comment") or row.get("potential_duplicate") not in (None, 0, "0"):
+    if row.get("data_validity_comment") not in (None, "Manually validated") or row.get("potential_duplicate") not in (None, 0, "0"):
         return False
     try:
         value = float(row["pchembl_value"])
@@ -60,7 +63,7 @@ def _save_measurement(session, row: dict, source: str) -> bool:
         return False
     session.add(Measurement(
         source=source, source_record_id=record_id,
-        source_url=f"https://www.ebi.ac.uk/chembl/compound_report_card/{row.get('molecule_chembl_id')}" if source == "chembl" else None,
+        source_url=f"https://www.ebi.ac.uk/chembl/compound_report_card/{row.get('molecule_chembl_id')}" if source.startswith("chembl") else None,
         target_id=TARGET_CHEMBL, molecule_id=row.get("molecule_chembl_id"),
         assay_id=row.get("assay_chembl_id"), raw_smiles=row["canonical_smiles"],
         canonical_smiles=canonical, scaffold=scaffold, activity_type="IC50", pchembl_value=value,

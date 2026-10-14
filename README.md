@@ -97,16 +97,23 @@ If ports 8000/8501 are already in use, set `API_HOST_PORT=18000` and `DASHBOARD_
 
 ## Real public data
 
-With an internet connection:
+For the proposed assay review workflow, first save a dated ChEMBL snapshot and generate the review sheet:
 
 ```bash
-cvti ingest --source live
-cvti train --source chembl
+cvti chembl snapshot --output data/pcsk9-chembl-YYYY-MM-DD.json
+cvti chembl review-sheet --snapshot data/pcsk9-chembl-YYYY-MM-DD.json --output data/pcsk9-assay-review-YYYY-MM-DD.csv
 ```
 
-Live ingestion queries [ChEMBL's REST API](https://www.ebi.ac.uk/chembl/api/data/docs) for human PCSK9 target `CHEMBL2929`, IC50 measurements with `=` relation, nM units, and a pChEMBL value. It queries the [Open Targets GraphQL API](https://platform-docs.opentargets.org/data-access/graphql-api) for PCSK9 `ENSG00000169174` and its top 20 associated diseases. Data source IDs, timestamps, assay IDs, canonical structures, and links are stored. Re-running ingestion skips previously stored ChEMBL activity IDs, preserving the collected measurement snapshot. Experiments record a hash of the exact curated training rows, source, sample counts, metrics, and saved model path.
+The review sheet is a CSV that can be opened in a spreadsheet app. A qualified reviewer must inspect the full assay descriptions and primary sources. For a suitable direct PCSK9-LDLR binding assay only, set `decision=include`, `endpoint_group=pcsk9_ldlr_binding`, and give a specific `review_note`; leave uncertain assays blank or set `exclude`. Then run:
 
-The public APIs can be slow or unavailable. `HTTP_MAX_RETRIES`, `HTTP_BACKOFF_SECONDS`, `HTTP_TIMEOUT_SECONDS`, and `CHEMBL_MAX_RECORDS` in `.env` control bounded requests. HTTP 429 and transient 5xx responses are retried with backoff and `Retry-After` when present. Completed ChEMBL pages stay saved if a later request fails. Avoid repeatedly scraping; for large studies use the providers' bulk downloads.
+```bash
+cvti chembl curate --snapshot data/pcsk9-chembl-YYYY-MM-DD.json --review data/pcsk9-assay-review-YYYY-MM-DD.csv
+cvti train --source chembl_curated
+```
+
+Read the full [assay curation policy](docs/assay-curation.md) before including records. The software enforces basic quality checks and a manual review gate; it does not replace scientific judgment. If the reviewed set is too small for the scaffold split, training stops. The initial `cvti ingest --source live` command remains available for preliminary exploration of ChEMBL and [Open Targets](https://platform-docs.opentargets.org/data-access/graphql-api), but the unreviewed `chembl` source cannot be used to train the baseline. Experiments record a hash of their training rows, source, sample counts, metrics, and saved model path.
+
+The public APIs can be slow or unavailable. `HTTP_MAX_RETRIES`, `HTTP_BACKOFF_SECONDS`, `HTTP_TIMEOUT_SECONDS`, and `CHEMBL_MAX_RECORDS` in `.env` control bounded requests. HTTP 429 and transient 5xx responses are retried with backoff and `Retry-After` when present. Avoid repeatedly querying; for large studies use the providers' bulk downloads.
 
 The built-in fixture is not sourced from either provider. Its source is `synthetic_fixture`; it is kept separate from `chembl` in training and shown as synthetic in the dashboard. Remove the local `data/` directory to reset SQLite data and model artifacts.
 
@@ -114,7 +121,7 @@ The built-in fixture is not sourced from either provider. Its source is `synthet
 
 - `GET /health`, `GET /summary`
 - `POST /fixtures/load`, `GET /measurements`, `GET /evidence`
-- `POST /experiments` with `{"source":"synthetic_fixture"}` or `{"source":"chembl"}`; `GET /experiments`
+- `POST /experiments` with `{"source":"synthetic_fixture"}` or `{"source":"chembl_curated"}`; `GET /experiments`
 - `POST /predict` with `{"smiles":"CC1CCCCC1"}`
 
 Molecules are parsed and converted to RDKit charge-parent canonical SMILES. An invalid structure or a molecule with no ring scaffold is rejected. The feature vector is a 2048-bit radius-2 Morgan fingerprint. The illustrative positive class is `pChEMBL IC50 >= 6` (IC50 at or below 1 µM). Duplicate standardized molecules are aggregated by median pChEMBL; contradictory molecules crossing the label threshold are excluded. A deterministic group split keeps Bemis–Murcko scaffolds, and therefore identical molecules, apart between training and test. The classifier is a fixed-seed 150-tree Random Forest. The saved experiment includes balanced accuracy, ROC AUC, train/test counts, and explicit zero-overlap checks.
@@ -124,7 +131,7 @@ The prediction response shows whether the exact molecule or its scaffold occurre
 ## Scientific limitations
 
 - PCSK9 is a biologically established cholesterol target, but a PCSK9 association score is not proof that a particular molecule treats cardiovascular disease. See the [Open Targets PCSK9 page](https://platform.opentargets.org/target/ENSG00000169174).
-- ChEMBL assays differ in constructs, formats, conditions, and source quality. The current IC50 filter and validity checks are basic; this MVP does not establish comparable mechanisms, selectivity, cell activity, exposure, toxicity, or in vivo efficacy.
+- ChEMBL assays differ in constructs, formats, conditions, and source quality. The new manual review gate narrows the intended endpoint, but it does not establish that included assays are comparable; this MVP does not establish selectivity, cell activity, exposure, toxicity, or in vivo efficacy.
 - Even scaffold splitting can overestimate prospective performance. The dataset may be small, class imbalanced, biased toward published chemistry, and related across scaffold families. One holdout split is not a confidence interval.
 - Charge-parent standardization can erase relevant salt/protonation information; stereochemistry is retained but may be missing from source structures. Acyclic molecules are excluded from this scaffold-split MVP.
 - The Random Forest is a baseline, not a medicinal chemistry decision system. No uncertainty calibration, applicability-domain validation, external benchmark, temporal split, or independent experimental confirmation is included.
@@ -133,8 +140,8 @@ The prediction response shows whether the exact molecule or its scaffold occurre
 ## Development milestones
 
 1. **Done here:** locked Python environment, versioned SQLite/PostgreSQL schema, Docker stack, offline fixture-to-dashboard vertical slice, source ingestion, persistence, scaffold-aware baseline, and tests.
-2. Review assay-level ChEMBL curation with a domain expert; define a consistent endpoint and minimum data quality rules.
-3. Add frozen public-data snapshots, dataset versioning, temporal/external validation, model calibration, and uncertainty analysis.
+2. **Implemented for review:** proposed direct PCSK9-LDLR binding endpoint, explicit activity/assay gates, raw snapshot and review CSV workflow. A domain expert still needs to review individual assays and the policy.
+3. Add dataset versioning in the database, temporal/external validation, model calibration, and uncertainty analysis.
 4. Add authentication and deployment monitoring when remote collaboration or hosting is needed.
 5. Seek experimental validation of any candidate hypotheses before making biological or therapeutic claims.
 

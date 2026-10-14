@@ -35,6 +35,8 @@ def _examples(rows):
 
 
 def train(session, source: str = "synthetic_fixture", artifact_dir: str | None = None) -> Experiment:
+    if source not in {"synthetic_fixture", "chembl_curated"}:
+        raise ValueError("Train only on the synthetic fixture or manually reviewed ChEMBL records")
     rows = session.scalars(select(Measurement).where(
         Measurement.source == source, Measurement.target_id == TARGET_CHEMBL,
         Measurement.activity_type == "IC50"
