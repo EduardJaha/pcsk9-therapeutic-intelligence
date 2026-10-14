@@ -1,4 +1,5 @@
 import httpx
+import numpy as np
 import pytest
 from types import SimpleNamespace
 from pathlib import Path
@@ -14,7 +15,7 @@ from cvti.config import Settings
 from cvti.db import init_db, make_engine, session_factory
 from cvti.ingest import SourceUnavailable, ingest_live, request_json
 from cvti.models import DatasetVersion, Experiment, Measurement, TargetEvidence
-from cvti.ml import _examples
+from cvti.ml import _evaluation_splits, _examples
 from cvti.provenance import verify_version
 
 
@@ -34,9 +35,28 @@ def test_offline_api_vertical_slice(tmp_path):
         assert version.status_code == 200
         assert version.json()["source"] == "synthetic_fixture"
         assert version.json()["records"] == 24
-        assert data["metrics"]["scaffold_overlap"] == 0
-        assert data["metrics"]["molecule_overlap"] == 0
-        assert data["metrics"]["n_test_scaffolds"] > 0
+        metrics = data["metrics"]
+        assert sum(metrics["class_counts"].values()) == 24
+        assert metrics["class_counts"]["active"] > 0
+        assert metrics["class_counts"]["inactive"] > 0
+        evaluation = metrics["evaluation"]
+        assert len(evaluation["splits"]) == 5
+        assert evaluation["split_selection"]["attempted"] >= 5
+        assert len({split["test_scaffold_sha256"] for split in evaluation["splits"]}) == 5
+        for split in evaluation["splits"]:
+            assert split["scaffold_overlap"] == split["molecule_overlap"] == 0
+            assert split["n_test_scaffolds"] > 0
+            assert sum(split["train_class_counts"].values()) + sum(split["test_class_counts"].values()) == 24
+            assert all(count > 0 for count in split["train_class_counts"].values())
+            assert all(count > 0 for count in split["test_class_counts"].values())
+            assert sum(split["confusion_matrix"].values()) == sum(split["test_class_counts"].values())
+            assert 0 <= split["balanced_accuracy"] <= 1
+            assert 0 <= split["roc_auc"] <= 1
+            assert 0 <= split["average_precision"] <= 1
+        for metric in ("balanced_accuracy", "roc_auc", "average_precision"):
+            scores = [split[metric] for split in evaluation["splits"]]
+            assert evaluation["summary"][metric]["min"] == min(scores)
+            assert evaluation["summary"][metric]["max"] == max(scores)
         prediction = client.post("/predict", json={"smiles": "CC1CCCCC1"})
         assert prediction.status_code == 200, prediction.text
         assert 0 <= prediction.json()["probability_exploratory_activity"] <= 1
@@ -109,6 +129,13 @@ def test_conflicting_duplicate_molecule_is_excluded():
     assert conflicts == 1
 
 
+def test_repeated_evaluation_stops_when_class_valid_scaffold_splits_are_impossible():
+    groups = np.array(["a", "a", "b", "b", "c", "c", "d", "d", "e", "e"])
+    labels = np.array([1, 1, 0, 0, 0, 0, 0, 0, 0, 0])
+    with pytest.raises(ValueError, match="five|5 distinct scaffold splits"):
+        _evaluation_splits(np.zeros((10, 2)), labels, groups)
+
+
 def test_migration_preserves_legacy_database(tmp_path):
     url = f"sqlite:///{tmp_path / 'legacy.db'}"
     config = Config(str(Path(__file__).parents[1] / "alembic.ini"))
@@ -156,6 +183,7 @@ def test_training_uses_stored_dataset_version_after_source_rows_change(tmp_path)
         assert second.status_code == 200, second.text
         assert second.json()["dataset_version_id"] == version_id
         assert second.json()["dataset_hash"] == first["dataset_hash"]
+        assert second.json()["metrics"] == first["metrics"]
         assert client.get("/experiments").json()[0]["dataset_version_id"] == version_id
         with session_factory(engine)() as session:
             assert session.scalar(select(Experiment).order_by(Experiment.id.desc())).dataset_version_id == version_id

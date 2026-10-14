@@ -6,7 +6,7 @@ from pathlib import Path
 import joblib
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import balanced_accuracy_score, roc_auc_score
+from sklearn.metrics import average_precision_score, balanced_accuracy_score, confusion_matrix, roc_auc_score
 from sklearn.model_selection import GroupShuffleSplit
 from sqlalchemy import select
 
@@ -19,6 +19,8 @@ from cvti.provenance import (canonical_bytes, code_hashes, create_version,
 
 
 THRESHOLD = 6.0  # IC50 <= 1 micromolar, only an illustrative research label
+EVALUATION_SPLITS = 5
+SPLIT_ATTEMPTS = 500
 
 
 def _examples(rows):
@@ -34,6 +36,43 @@ def _examples(rows):
             continue
         examples.append((smiles, records[0].scaffold, float(np.median(values))))
     return examples, conflicts
+
+
+def _class_counts(labels: np.ndarray) -> dict[str, int]:
+    return {"inactive": int(np.sum(labels == 0)), "active": int(np.sum(labels == 1))}
+
+
+def _evaluation_splits(X: np.ndarray, y: np.ndarray, groups: np.ndarray):
+    """Take the first distinct, class-valid scaffold holdouts from a fixed sequence."""
+    selected = []
+    seen_test_groups = set()
+    attempted = 0
+    rejected_single_class = 0
+    rejected_duplicate = 0
+    splitter = GroupShuffleSplit(n_splits=SPLIT_ATTEMPTS, test_size=0.25, random_state=42)
+    for train_idx, test_idx in splitter.split(X, y, groups):
+        attempted += 1
+        if len(set(y[train_idx])) != 2 or len(set(y[test_idx])) != 2:
+            rejected_single_class += 1
+            continue
+        test_groups = frozenset(groups[test_idx])
+        if test_groups in seen_test_groups:
+            rejected_duplicate += 1
+            continue
+        seen_test_groups.add(test_groups)
+        selected.append((train_idx, test_idx))
+        if len(selected) == EVALUATION_SPLITS:
+            break
+    if len(selected) < EVALUATION_SPLITS:
+        raise ValueError(f"Need {EVALUATION_SPLITS} distinct scaffold splits with both classes; "
+                         f"found {len(selected)} in {attempted} attempts")
+    return selected, {"attempted": attempted, "rejected_single_class": rejected_single_class,
+                      "rejected_duplicate_partition": rejected_duplicate}
+
+
+def _metric_summary(results: list[dict], name: str) -> dict[str, float]:
+    values = [item[name] for item in results]
+    return {"median": float(np.median(values)), "min": float(min(values)), "max": float(max(values))}
 
 
 def train(session, source: str = "synthetic_fixture", artifact_dir: str | None = None,
@@ -73,33 +112,56 @@ def train(session, source: str = "synthetic_fixture", artifact_dir: str | None =
         raise ValueError("Need both IC50 label classes")
     groups = np.array([x[1] for x in examples])
     X = np.stack([fingerprint(x[0]) for x in examples])
-    split = None
-    for train_idx, test_idx in GroupShuffleSplit(n_splits=100, test_size=0.25, random_state=42).split(X, y, groups):
-        if len(set(y[train_idx])) == 2 and len(set(y[test_idx])) == 2:
-            split = train_idx, test_idx
-            break
-    if split is None:
-        raise ValueError("Unable to make a scaffold-disjoint split with both classes")
-    train_idx, test_idx = split
-    train_scaffolds = set(groups[train_idx])
-    test_scaffolds = set(groups[test_idx])
-    train_smiles = {examples[i][0] for i in train_idx}
-    test_smiles = {examples[i][0] for i in test_idx}
-    assert train_scaffolds.isdisjoint(test_scaffolds)
-    assert train_smiles.isdisjoint(test_smiles)
-
-    model = RandomForestClassifier(n_estimators=150, class_weight="balanced", random_state=42, n_jobs=1)
-    model.fit(X[train_idx], y[train_idx])
-    probabilities = model.predict_proba(X[test_idx])[:, 1]
+    splits, split_selection = _evaluation_splits(X, y, groups)
+    split_results = []
+    for split_number, (train_idx, test_idx) in enumerate(splits, start=1):
+        train_scaffolds = set(groups[train_idx])
+        test_scaffolds = set(groups[test_idx])
+        train_smiles = {examples[i][0] for i in train_idx}
+        test_smiles = {examples[i][0] for i in test_idx}
+        scaffold_overlap = len(train_scaffolds & test_scaffolds)
+        molecule_overlap = len(train_smiles & test_smiles)
+        if scaffold_overlap or molecule_overlap:
+            raise ValueError("Scaffold split leaked training molecules or scaffolds into the test set")
+        evaluation_model = RandomForestClassifier(
+            n_estimators=150, class_weight="balanced", random_state=42, n_jobs=1)
+        evaluation_model.fit(X[train_idx], y[train_idx])
+        probabilities = evaluation_model.predict_proba(X[test_idx])[:, 1]
+        predictions = (probabilities >= 0.5).astype(int)
+        tn, fp, fn, tp = (int(value) for value in confusion_matrix(
+            y[test_idx], predictions, labels=[0, 1]).ravel())
+        split_results.append({
+            "split": split_number,
+            "train_class_counts": _class_counts(y[train_idx]),
+            "test_class_counts": _class_counts(y[test_idx]),
+            "n_train_scaffolds": len(train_scaffolds), "n_test_scaffolds": len(test_scaffolds),
+            "test_scaffold_sha256": hashlib.sha256(
+                json.dumps(sorted(test_scaffolds)).encode("utf-8")).hexdigest(),
+            "scaffold_overlap": scaffold_overlap, "molecule_overlap": molecule_overlap,
+            "balanced_accuracy": float(balanced_accuracy_score(y[test_idx], predictions)),
+            "roc_auc": float(roc_auc_score(y[test_idx], probabilities)),
+            "average_precision": float(average_precision_score(y[test_idx], probabilities)),
+            "confusion_matrix": {"tn": tn, "fp": fp, "fn": fn, "tp": tp},
+        })
     metrics = {
-        "balanced_accuracy": float(balanced_accuracy_score(y[test_idx], probabilities >= 0.5)),
-        "roc_auc": float(roc_auc_score(y[test_idx], probabilities)),
-        "n_train": len(train_idx), "n_test": len(test_idx),
-        "n_train_scaffolds": len(train_scaffolds), "n_test_scaffolds": len(test_scaffolds),
-        "scaffold_overlap": 0, "molecule_overlap": 0,
+        "class_counts": _class_counts(y),
         "conflicting_molecules_excluded": conflicts,
         "label_note": "pChEMBL IC50 >= 6 (<=1 uM); exploratory research label",
+        "evaluation": {
+            "method": "five_distinct_scaffold_group_shuffle_holdouts",
+            "test_fraction": 0.25, "random_state": 42,
+            "split_selection": split_selection,
+            "summary": {name: _metric_summary(split_results, name) for name in
+                        ("balanced_accuracy", "roc_auc", "average_precision")},
+            "splits": split_results,
+            "caveat": "Repeated holdouts overlap and are not independent confidence intervals; no external validation",
+        },
+        "saved_model": "refit_on_all_version_molecules_after_evaluation",
     }
+    model = RandomForestClassifier(n_estimators=150, class_weight="balanced", random_state=42, n_jobs=1)
+    model.fit(X, y)
+    train_smiles = {example[0] for example in examples}
+    train_scaffolds = set(groups)
     dataset_hash = hashlib.sha256(json.dumps(examples, sort_keys=True).encode()).hexdigest()
     run = Experiment(dataset_version_id=version.id, target_id=TARGET_CHEMBL,
                      data_source=source, model_kind="Morgan2048_RF150",
