@@ -113,6 +113,8 @@ cvti train --source chembl_curated
 
 Read the full [assay curation policy](docs/assay-curation.md) before including records. The software enforces basic quality checks and a manual review gate; it does not replace scientific judgment. If the reviewed set is too small for the scaffold split, training stops. The initial `cvti ingest --source live` command remains available for preliminary exploration of ChEMBL and [Open Targets](https://platform-docs.opentargets.org/data-access/graphql-api), but the unreviewed `chembl` source cannot be used to train the baseline. Experiments record a hash of their training rows, source, sample counts, metrics, and saved model path.
 
+The [14 October 2026 desk review](docs/assay-review-2026-10-14.md) screened all 23 assays in the first saved snapshot and approved none for the narrow direct-binding endpoint. The decision sheet is in `reviews/`; no real-data model has been trained. Original-source verification and independent assay expertise remain necessary before changing an exclusion to inclusion.
+
 The public APIs can be slow or unavailable. `HTTP_MAX_RETRIES`, `HTTP_BACKOFF_SECONDS`, `HTTP_TIMEOUT_SECONDS`, and `CHEMBL_MAX_RECORDS` in `.env` control bounded requests. HTTP 429 and transient 5xx responses are retried with backoff and `Retry-After` when present. Avoid repeatedly querying; for large studies use the providers' bulk downloads.
 
 The built-in fixture is not sourced from either provider. Its source is `synthetic_fixture`; it is kept separate from `chembl` in training and shown as synthetic in the dashboard. Remove the local `data/` directory to reset SQLite data and model artifacts.
@@ -140,7 +142,7 @@ The prediction response shows whether the exact molecule or its scaffold occurre
 ## Development milestones
 
 1. **Done here:** locked Python environment, versioned SQLite/PostgreSQL schema, Docker stack, offline fixture-to-dashboard vertical slice, source ingestion, persistence, scaffold-aware baseline, and tests.
-2. **Implemented for review:** proposed direct PCSK9-LDLR binding endpoint, explicit activity/assay gates, raw snapshot and review CSV workflow. A domain expert still needs to review individual assays and the policy.
+2. **Screened conservatively:** proposed direct PCSK9-LDLR binding endpoint, explicit activity/assay gates, raw snapshot and review CSV workflow. The first 23-assay desk review approved no records; independent expert review and original-source verification are still needed.
 3. Add dataset versioning in the database, temporal/external validation, model calibration, and uncertainty analysis.
 4. Add authentication and deployment monitoring when remote collaboration or hosting is needed.
 5. Seek experimental validation of any candidate hypotheses before making biological or therapeutic claims.

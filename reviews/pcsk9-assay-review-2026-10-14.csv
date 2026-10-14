@@ -1,0 +1,24 @@
+assay_chembl_id,decision,endpoint_group,review_note,source_document_id
+CHEMBL3887820,exclude,,Cellular secreted PCSK9 AlphaLISA readout; indirect target assignment H confidence 8; not PCSK9-LDLR binding.,CHEMBL3886461
+CHEMBL3887821,exclude,,Cell-free PCSK9 translation reporter readout; indirect target assignment H confidence 8; not PCSK9-LDLR binding.,CHEMBL3886461
+CHEMBL4221943,exclude,,On-cell PCSK9-LDLR binding readout from a literature and patent review; cellular format differs from a purified direct binding endpoint and original study provenance is needed.,CHEMBL4219125
+CHEMBL4221944,exclude,,Recombinant PCSK9-LDLR SPR description is promising but ChEMBL source is a literature and patent review; trace and verify the original experiment before inclusion.,CHEMBL4219125
+CHEMBL4221946,exclude,,TR-FRET description does not name the binding partner and ChEMBL source is a literature and patent review.,CHEMBL4219125
+CHEMBL4383959,exclude,,Cell-based tagged PCSK9 high-throughput readout does not establish direct LDLR binding; ChEMBL source is a review.,CHEMBL4382228
+CHEMBL4383962,exclude,,PCSK9 binding to an LDLR-AB fragment is described but protein origins are unknown and ChEMBL source is a review; original assay needs verification.,CHEMBL4382228
+CHEMBL4383971,exclude,,PCSK9 binding to an LDLR-AB fragment is described but protein origins are unknown and ChEMBL source is a review; original assay needs verification.,CHEMBL4382228
+CHEMBL4434275,exclude,,HepG2 cellular PCSK9 ELISA readout after compound exposure measures PCSK9 level rather than direct LDLR binding.,CHEMBL4433247
+CHEMBL4434276,exclude,,HepG2 cellular PCSK9 AlphaLISA readout measures PCSK9 level rather than direct LDLR binding.,CHEMBL4433247
+CHEMBL4622704,exclude,,TR-FRET description does not specify an LDLR binding partner; ChEMBL source is an editorial patent highlight rather than a primary assay report.,CHEMBL4619822
+CHEMBL5036230,exclude,,THP-1 cellular PCSK9 translation readout is not direct PCSK9-LDLR binding.,CHEMBL5034046
+CHEMBL5038682,exclude,,Competitive ELISA measures binding of an LDLR-derived tEGF-A peptide to PCSK9; it does not establish inhibition of PCSK9 binding to LDLR in this assay.,CHEMBL5038568
+CHEMBL5040279,exclude,,Assay description says only inhibition of human PCSK9; LDLR binding readout is not specified and cannot be inferred.,CHEMBL5038602
+CHEMBL5232231,exclude,,Luciferase reporter readout of tagged PCSK9 is not direct PCSK9-LDLR binding.,CHEMBL5230139
+CHEMBL5236415,exclude,,Assay description says only inhibition of human PCSK9 and ChEMBL source is a review; original assay readout is unverified.,CHEMBL5233285
+CHEMBL5236419,exclude,,Assay description says only inhibition of PCSK9 of unknown origin and ChEMBL source is a review.,CHEMBL5233285
+CHEMBL5236432,exclude,,TR-FRET assay adds antibody ab20 rather than LDLR and ChEMBL source is a review.,CHEMBL5233285
+CHEMBL5236433,exclude,,TR-FRET assay uses isolated EGF-A domain rather than full LDLR and ChEMBL source is a review; one activity is flagged duplicate.,CHEMBL5233285
+CHEMBL5236434,exclude,,TR-FRET description names LDLR but ChEMBL source is a review; trace and verify the original experiment before inclusion.,CHEMBL5233285
+CHEMBL5333523,exclude,,HepG2 PCSK9-promoter luciferase transcription readout is not direct PCSK9-LDLR binding.,CHEMBL5331095
+CHEMBL5365867,exclude,,Huh-7 cellular PCSK9 ELISA readout measures PCSK9 levels rather than direct LDLR binding.,CHEMBL5365408
+CHEMBL5584419,exclude,,HepG2 PCSK9 transcriptional luciferase readout is not direct PCSK9-LDLR binding.,CHEMBL5584202
