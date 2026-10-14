@@ -1,0 +1,33 @@
+{
+  "notice": "Entire fixture is synthetic and NOT measured PCSK9 bioactivity or real Open Targets evidence. It exists solely for offline software tests.",
+  "activities": [
+    {"activity_id": 1, "canonical_smiles": "Cc1ccccc1", "pchembl_value": 5.1},
+    {"activity_id": 2, "canonical_smiles": "Oc1ccccc1", "pchembl_value": 5.4},
+    {"activity_id": 3, "canonical_smiles": "Cc1ccncc1", "pchembl_value": 4.8},
+    {"activity_id": 4, "canonical_smiles": "Oc1ccncc1", "pchembl_value": 5.2},
+    {"activity_id": 5, "canonical_smiles": "Cc1cccc2ccccc12", "pchembl_value": 7.2},
+    {"activity_id": 6, "canonical_smiles": "Oc1cccc2ccccc12", "pchembl_value": 7.0},
+    {"activity_id": 7, "canonical_smiles": "Cc1c[nH]c2ccccc12", "pchembl_value": 7.4},
+    {"activity_id": 8, "canonical_smiles": "Oc1c[nH]c2ccccc12", "pchembl_value": 7.1},
+    {"activity_id": 9, "canonical_smiles": "Cc1ccnc2ccccc12", "pchembl_value": 6.8},
+    {"activity_id": 10, "canonical_smiles": "Oc1ccnc2ccccc12", "pchembl_value": 7.0},
+    {"activity_id": 11, "canonical_smiles": "CC1CCNCC1", "pchembl_value": 4.9},
+    {"activity_id": 12, "canonical_smiles": "OC1CCNCC1", "pchembl_value": 5.3},
+    {"activity_id": 13, "canonical_smiles": "CC1COCCN1", "pchembl_value": 5.2},
+    {"activity_id": 14, "canonical_smiles": "OC1COCCN1", "pchembl_value": 5.0},
+    {"activity_id": 15, "canonical_smiles": "Cc1cccs1", "pchembl_value": 6.7},
+    {"activity_id": 16, "canonical_smiles": "Oc1cccs1", "pchembl_value": 6.9},
+    {"activity_id": 17, "canonical_smiles": "Cc1ccco1", "pchembl_value": 5.5},
+    {"activity_id": 18, "canonical_smiles": "Oc1ccco1", "pchembl_value": 5.1},
+    {"activity_id": 19, "canonical_smiles": "Cc1cc[nH]c1", "pchembl_value": 6.6},
+    {"activity_id": 20, "canonical_smiles": "Oc1cc[nH]c1", "pchembl_value": 6.8},
+    {"activity_id": 21, "canonical_smiles": "CC1CCCCC1", "pchembl_value": 4.7},
+    {"activity_id": 22, "canonical_smiles": "OC1CCCCC1", "pchembl_value": 5.0},
+    {"activity_id": 23, "canonical_smiles": "Cc1cc2ccccc2o1", "pchembl_value": 7.1},
+    {"activity_id": 24, "canonical_smiles": "Oc1cc2ccccc2o1", "pchembl_value": 7.3}
+  ],
+  "diseases": [
+    {"score": 0.85, "disease": {"id": "SYNTHETIC_DISEASE_1", "name": "Synthetic lipid phenotype"}},
+    {"score": 0.73, "disease": {"id": "SYNTHETIC_DISEASE_2", "name": "Synthetic cardiovascular phenotype"}}
+  ]
+}

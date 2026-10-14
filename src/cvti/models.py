@@ -1,0 +1,72 @@
+from datetime import datetime, timezone
+
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column
+
+from cvti.db import Base
+
+
+def utcnow():
+    return datetime.now(timezone.utc)
+
+
+class Measurement(Base):
+    __tablename__ = "measurements"
+    __table_args__ = (UniqueConstraint("source", "source_record_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    source: Mapped[str] = mapped_column(String(40))
+    source_record_id: Mapped[str] = mapped_column(String(80))
+    source_url: Mapped[str | None] = mapped_column(Text)
+    target_id: Mapped[str] = mapped_column(String(40), default="CHEMBL2929")
+    molecule_id: Mapped[str | None] = mapped_column(String(80))
+    assay_id: Mapped[str | None] = mapped_column(String(80))
+    raw_smiles: Mapped[str] = mapped_column(Text)
+    canonical_smiles: Mapped[str] = mapped_column(Text)
+    scaffold: Mapped[str] = mapped_column(Text)
+    activity_type: Mapped[str] = mapped_column(String(20))
+    pchembl_value: Mapped[float] = mapped_column(Float)
+    retrieved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class TargetEvidence(Base):
+    __tablename__ = "target_evidence"
+    __table_args__ = (UniqueConstraint("target_id", "disease_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    target_id: Mapped[str] = mapped_column(String(40))
+    target_symbol: Mapped[str] = mapped_column(String(40))
+    disease_id: Mapped[str] = mapped_column(String(80))
+    disease_name: Mapped[str] = mapped_column(Text)
+    association_score: Mapped[float] = mapped_column(Float)
+    source_url: Mapped[str] = mapped_column(Text)
+    retrieved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Experiment(Base):
+    __tablename__ = "experiments"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    target_id: Mapped[str] = mapped_column(String(40))
+    data_source: Mapped[str] = mapped_column(String(40))
+    model_kind: Mapped[str] = mapped_column(String(60))
+    activity_type: Mapped[str] = mapped_column(String(20))
+    threshold_pchembl: Mapped[float] = mapped_column(Float)
+    n_molecules: Mapped[int] = mapped_column(Integer)
+    n_scaffolds: Mapped[int] = mapped_column(Integer)
+    metrics: Mapped[dict] = mapped_column(JSON)
+    dataset_hash: Mapped[str] = mapped_column(String(64))
+    artifact_path: Mapped[str] = mapped_column(Text)
+
+
+class Prediction(Base):
+    __tablename__ = "predictions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    experiment_id: Mapped[int] = mapped_column(ForeignKey("experiments.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    input_smiles: Mapped[str] = mapped_column(Text)
+    canonical_smiles: Mapped[str] = mapped_column(Text)
+    probability: Mapped[float] = mapped_column(Float)
+    label: Mapped[str] = mapped_column(String(120), default="Research hypothesis only; not a validated drug")
