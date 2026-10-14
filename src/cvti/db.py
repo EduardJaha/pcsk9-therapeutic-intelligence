@@ -39,16 +39,27 @@ def init_db(engine):
         config.attributes["connection"] = connection
         existing_tables = set(inspect(connection).get_table_names())
         if existing_tables and "alembic_version" not in existing_tables:
-            # Preserve databases created by the first MVP. Only stamp the baseline
-            # when its tables match. The new query indexes are applied afterward.
+            # Preserve databases created by the first MVP. Stamp the baseline only
+            # when all differences are additions made by our later migrations.
             differences = compare_metadata(
                 MigrationContext.configure(connection, opts={"compare_type": True}), Base.metadata
             )
             expected_indexes = {index.name for table in Base.metadata.tables.values() for index in table.indexes}
-            only_new_indexes = all(
-                change[0] == "add_index" and change[1].name in expected_indexes for change in differences
-            )
-            if existing_tables != set(Base.metadata.tables) or not only_new_indexes:
+            def expected_addition(change):
+                if change[0] == "add_index":
+                    return change[1].name in expected_indexes
+                if change[0] == "add_table":
+                    return change[1].name == "dataset_versions"
+                if change[0] == "add_column":
+                    return change[2] == "experiments" and change[3].name == "dataset_version_id"
+                if change[0] == "add_fk":
+                    fk = change[1]
+                    return (fk.table.name == "experiments"
+                            and list(fk.columns.keys()) == ["dataset_version_id"])
+                return False
+
+            baseline_tables = set(Base.metadata.tables) - {"dataset_versions"}
+            if existing_tables != baseline_tables or not all(expected_addition(change) for change in differences):
                 raise RuntimeError("Existing database schema differs from the MVP baseline; back up and review it before migration")
             command.stamp(config, "2cf3a3fb0c41")
         command.upgrade(config, "head")

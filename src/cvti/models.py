@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Float, ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint
+from sqlalchemy import DateTime, Float, ForeignKey, Index, Integer, JSON, LargeBinary, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from cvti.db import Base
@@ -50,11 +50,34 @@ class TargetEvidence(Base):
     retrieved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class DatasetVersion(Base):
+    __tablename__ = "dataset_versions"
+    __table_args__ = (Index("ix_dataset_versions_source_created", "source", "created_at"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    source: Mapped[str] = mapped_column(String(40))
+    status: Mapped[str] = mapped_column(String(30))
+    target_id: Mapped[str] = mapped_column(String(40))
+    endpoint_group: Mapped[str | None] = mapped_column(String(80))
+    snapshot_sha256: Mapped[str | None] = mapped_column(String(64))
+    review_sha256: Mapped[str | None] = mapped_column(String(64))
+    policy_sha256: Mapped[str] = mapped_column(String(64))
+    records_sha256: Mapped[str] = mapped_column(String(64))
+    manifest_sha256: Mapped[str] = mapped_column(String(64), unique=True)
+    snapshot_blob: Mapped[bytes | None] = mapped_column(LargeBinary)
+    review_blob: Mapped[bytes | None] = mapped_column(LargeBinary)
+    policy_json: Mapped[dict] = mapped_column(JSON)
+    records_json: Mapped[list] = mapped_column(JSON)
+    stats_json: Mapped[dict] = mapped_column(JSON)
+
+
 class Experiment(Base):
     __tablename__ = "experiments"
     __table_args__ = (Index("ix_experiments_source_created", "data_source", "created_at"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    dataset_version_id: Mapped[int] = mapped_column(ForeignKey("dataset_versions.id"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     target_id: Mapped[str] = mapped_column(String(40))
     data_source: Mapped[str] = mapped_column(String(40))

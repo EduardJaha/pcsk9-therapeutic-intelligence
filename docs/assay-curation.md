@@ -29,10 +29,14 @@ Then run:
 
 ```bash
 cvti chembl curate --snapshot data/pcsk9-chembl-YYYY-MM-DD.json --review data/pcsk9-assay-review-YYYY-MM-DD.csv
-cvti train --source chembl_curated
+cvti datasets list
 ```
 
-The curation command reports counts for every exclusion reason, plus hashes of the snapshot and review sheet. When at least one activity passes, it replaces the `chembl_curated` measurements as one dataset so old approvals do not linger. With no approved activities it reports `applied: false` and leaves existing curated records alone. Keep the snapshot and review sheet together; `data/` is intentionally excluded from Git. If too few distinct molecules or scaffolds survive, training stops instead of weakening the quality rules.
+The curation command reports counts for every exclusion reason and a database `dataset_version_id`. It stores the exact snapshot bytes, review CSV bytes, selection rules and implementation hashes, and selected rows with SHA-256 checksums. You can inspect a version with `cvti datasets show ID` and recover files with `cvti datasets export ID --kind snapshot --output recovered.json` or `--kind review --output recovered.csv`. Keep external backups of the database and source files too; `data/` is intentionally excluded from Git.
+
+An undecided assay that passes the automatic gates gives the version status `pending_review`; the current `chembl_curated` table is not changed. A completed review with zero approved activities gives `reviewed_empty` and clears the current curated table. A completed review with approved activities gives `ready` and replaces the current curated table. Earlier versions remain stored. Only a `ready` version can train: `cvti train --source chembl_curated --dataset-version-id ID`. Without an ID, training uses the newest version. If too few distinct molecules or scaffolds survive, training stops instead of weakening the quality rules. Each experiment records the version it used, so the original training rows and decisions can be inspected later.
+
+The snapshot captures a particular API response and retrieval time, not an independently verified ChEMBL release identifier. Because a paginated live API pull could span an update, preserve the raw response and its checksum; for formal release-level reproducibility, use a named ChEMBL bulk release and record its release identifier separately.
 
 The older `cvti ingest --source live` path stores a broad, preliminary ChEMBL collection as `chembl` for exploration. Training from that unreviewed source is disabled. The synthetic fixture is separate and remains useful for software smoke tests only.
 

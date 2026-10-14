@@ -2,12 +2,14 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from sqlalchemy import text
+from sqlalchemy import select, text
 
 from cvti.curation import curate_snapshot, fetch_snapshot, write_review_sheet
 from cvti.db import init_db, make_engine, session_factory
 from cvti.ingest import SourceUnavailable, ingest_fixture, ingest_live
 from cvti.ml import predict, train
+from cvti.models import DatasetVersion
+from cvti.provenance import verify_version, version_summary
 
 
 def main():
@@ -29,6 +31,16 @@ def main():
     curate_parser.add_argument("--review", type=Path, required=True)
     train_parser = sub.add_parser("train", help="Train scaffold-split IC50 baseline")
     train_parser.add_argument("--source", choices=["synthetic_fixture", "chembl_curated"], default="synthetic_fixture")
+    train_parser.add_argument("--dataset-version-id", type=int)
+    datasets_parser = sub.add_parser("datasets", help="Inspect or recover stored dataset versions")
+    datasets_sub = datasets_parser.add_subparsers(dest="action", required=True)
+    datasets_sub.add_parser("list")
+    show_parser = datasets_sub.add_parser("show")
+    show_parser.add_argument("id", type=int)
+    export_parser = datasets_sub.add_parser("export")
+    export_parser.add_argument("id", type=int)
+    export_parser.add_argument("--kind", choices=["snapshot", "review"], required=True)
+    export_parser.add_argument("--output", type=Path, required=True)
     predict_parser = sub.add_parser("predict", help="Save exploratory prediction")
     predict_parser.add_argument("smiles")
     predict_parser.add_argument("--experiment-id", type=int)
@@ -60,9 +72,30 @@ def main():
                 result = ingest_fixture(session) if args.source == "fixture" else ingest_live(session)
             elif args.command == "chembl":
                 result = curate_snapshot(session, args.snapshot, args.review)
+            elif args.command == "datasets":
+                if args.action == "list":
+                    versions = session.scalars(select(DatasetVersion).order_by(DatasetVersion.id.desc())).all()
+                    result = [version_summary(version) for version in versions]
+                else:
+                    version = session.get(DatasetVersion, args.id)
+                    if version is None:
+                        raise ValueError(f"Dataset version {args.id} does not exist")
+                    verify_version(version)
+                    if args.action == "show":
+                        result = {**version_summary(version), "policy": version.policy_json}
+                    else:
+                        content = version.snapshot_blob if args.kind == "snapshot" else version.review_blob
+                        if content is None:
+                            raise ValueError(f"Dataset version {args.id} has no {args.kind} file")
+                        args.output.parent.mkdir(parents=True, exist_ok=True)
+                        with args.output.open("xb") as output:
+                            output.write(content)
+                        result = {"dataset_version_id": version.id, "kind": args.kind,
+                                  "output": str(args.output)}
             elif args.command == "train":
-                run = train(session, args.source)
-                result = {"experiment_id": run.id, "source": run.data_source, "metrics": run.metrics}
+                run = train(session, args.source, dataset_version_id=args.dataset_version_id)
+                result = {"experiment_id": run.id, "dataset_version_id": run.dataset_version_id,
+                          "source": run.data_source, "metrics": run.metrics}
             else:
                 result = predict(session, args.smiles, args.experiment_id)
     except (SourceUnavailable, ValueError, RuntimeError, OSError, json.JSONDecodeError) as exc:

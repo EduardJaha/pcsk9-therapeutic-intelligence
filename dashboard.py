@@ -43,7 +43,8 @@ if right.button("Train baseline on synthetic fixture"):
 
 runs = call("GET", "/experiments") or []
 if runs:
-    st.dataframe([{"ID": r["id"], "Source": r["data_source"], "Molecules": r["n_molecules"],
+    st.dataframe([{"ID": r["id"], "Dataset version": r["dataset_version_id"],
+                   "Source": r["data_source"], "Molecules": r["n_molecules"],
                    "Scaffolds": r["n_scaffolds"], "Balanced accuracy": r["metrics"]["balanced_accuracy"],
                    "ROC AUC": r["metrics"]["roc_auc"]} for r in runs], hide_index=True)
 
@@ -54,6 +55,9 @@ if st.button("Save exploratory prediction"):
     if result:
         st.metric("Exploratory activity model score", f"{result['probability_exploratory_activity']:.3f}")
         st.info(result["label"])
+        st.caption(f"Dataset version: {result['dataset_version_id']} ({result['dataset_version_status']})")
+        if result["dataset_version_superseded"]:
+            st.warning("This experiment used an older dataset version. Review its provenance before interpreting the score.")
         st.caption(f"Model source: {result['source']}; seen in training: {result['seen_in_training']}; scaffold seen in training: {result['scaffold_seen_in_training']}")
 
 st.subheader("PCSK9 disease associations")

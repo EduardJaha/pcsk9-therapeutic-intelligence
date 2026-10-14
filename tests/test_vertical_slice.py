@@ -13,8 +13,9 @@ from cvti.chemistry import standardize
 from cvti.config import Settings
 from cvti.db import init_db, make_engine, session_factory
 from cvti.ingest import SourceUnavailable, ingest_live, request_json
-from cvti.models import Measurement, TargetEvidence
+from cvti.models import DatasetVersion, Experiment, Measurement, TargetEvidence
 from cvti.ml import _examples
+from cvti.provenance import verify_version
 
 
 def test_offline_api_vertical_slice(tmp_path):
@@ -28,6 +29,11 @@ def test_offline_api_vertical_slice(tmp_path):
         assert run.status_code == 200, run.text
         data = run.json()
         assert data["n_molecules"] == 24
+        assert data["dataset_version_id"] > 0
+        version = client.get(f"/dataset-versions/{data['dataset_version_id']}")
+        assert version.status_code == 200
+        assert version.json()["source"] == "synthetic_fixture"
+        assert version.json()["records"] == 24
         assert data["metrics"]["scaffold_overlap"] == 0
         assert data["metrics"]["molecule_overlap"] == 0
         assert data["metrics"]["n_test_scaffolds"] > 0
@@ -35,6 +41,7 @@ def test_offline_api_vertical_slice(tmp_path):
         assert prediction.status_code == 200, prediction.text
         assert 0 <= prediction.json()["probability_exploratory_activity"] <= 1
         assert prediction.json()["label"].startswith("Research hypothesis")
+        assert prediction.json()["dataset_version_id"] == data["dataset_version_id"]
         assert client.get("/summary").json()["predictions"] == 1
         assert client.get("/evidence").json()[0]["disease_id"].startswith("SYNTHETIC")
 
@@ -114,13 +121,44 @@ def test_migration_preserves_legacy_database(tmp_path):
                                    association_score=0.5, source_url="https://example.test"))
         session.commit()
     with engine.begin() as connection:
+        connection.execute(text("""INSERT INTO experiments
+            (created_at, target_id, data_source, model_kind, activity_type, threshold_pchembl,
+             n_molecules, n_scaffolds, metrics, dataset_hash, artifact_path)
+            VALUES ('2026-10-14 00:00:00', 'CHEMBL2929', 'synthetic_fixture', 'legacy', 'IC50',
+                    6.0, 24, 8, '{}', 'legacy-hash', '/tmp/legacy.joblib')"""))
         connection.execute(text("DROP TABLE alembic_version"))
     init_db(engine)
     with engine.connect() as connection:
-        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0b0d802d3cb4"
+        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "6e4a2f9d1c08"
         assert connection.execute(text("SELECT disease_name FROM target_evidence")).scalar_one() == "Preserve me"
+        legacy_id = connection.execute(text("SELECT dataset_version_id FROM experiments")).scalar_one()
+        assert legacy_id > 0
+        assert connection.execute(text("SELECT status FROM dataset_versions WHERE id = :id"),
+                                  {"id": legacy_id}).scalar_one() == "legacy_unverified"
         indexes = {item["name"] for item in inspect(connection).get_indexes("measurements")}
         assert "ix_measurements_source_target_type" in indexes
+    with session_factory(engine)() as session:
+        verify_version(session.get(DatasetVersion, legacy_id))
+
+
+def test_training_uses_stored_dataset_version_after_source_rows_change(tmp_path):
+    app = create_app(f"sqlite:///{tmp_path / 'history.db'}", str(tmp_path / "artifacts"))
+    with TestClient(app) as client:
+        assert client.post("/fixtures/load").status_code == 200
+        first = client.post("/experiments", json={"source": "synthetic_fixture"}).json()
+        version_id = first["dataset_version_id"]
+        engine = make_engine(f"sqlite:///{tmp_path / 'history.db'}")
+        with session_factory(engine)() as session:
+            session.query(Measurement).filter(Measurement.source == "synthetic_fixture").delete()
+            session.commit()
+        second = client.post("/experiments", json={"source": "synthetic_fixture",
+                                                   "dataset_version_id": version_id})
+        assert second.status_code == 200, second.text
+        assert second.json()["dataset_version_id"] == version_id
+        assert second.json()["dataset_hash"] == first["dataset_hash"]
+        assert client.get("/experiments").json()[0]["dataset_version_id"] == version_id
+        with session_factory(engine)() as session:
+            assert session.scalar(select(Experiment).order_by(Experiment.id.desc())).dataset_version_id == version_id
 
 
 def test_invalid_configuration_is_rejected():

@@ -9,7 +9,8 @@ from cvti.curation import activity_issue, curate_snapshot, fetch_snapshot, write
 from cvti.config import Settings
 from cvti.db import init_db, make_engine, session_factory
 from cvti.ml import train
-from cvti.models import Measurement
+from cvti.models import DatasetVersion, Measurement
+from cvti.provenance import verify_version, version_rows
 
 
 def activity(activity_id, assay_id="CHEMBL_A", **changes):
@@ -54,6 +55,10 @@ def test_review_gate_and_curation_report(tmp_path):
         result = curate_snapshot(session, snapshot, review)
         assert result["inserted_measurements"] == 0
         assert result["applied"] is False
+        assert result["status"] == "pending_review"
+        pending_version = session.get(DatasetVersion, result["dataset_version_id"])
+        assert pending_version.snapshot_blob == snapshot.read_bytes()
+        assert pending_version.review_blob == review.read_bytes()
         assert result["excluded_by_reason"]["assay_not_approved"] == 2
 
     with review.open(newline="") as file:
@@ -77,20 +82,29 @@ def test_review_gate_and_curation_report(tmp_path):
             curate_snapshot(session, snapshot, review)
 
     rows[0]["endpoint_group"] = "pcsk9_ldlr_binding"
+    rows[2]["decision"] = "exclude"
     with review.open("w", newline="") as file:
         writer = csv.DictWriter(file, fieldnames=rows[0])
         writer.writeheader()
         writer.writerows(rows)
     with session_factory(engine)() as session:
         result = curate_snapshot(session, snapshot, review)
+        first_version_id = result["dataset_version_id"]
+        first_review_bytes = review.read_bytes()
+        assert result["status"] == "ready"
         assert result["inserted_measurements"] == 1
         assert result["excluded_by_reason"]["indirect_or_low_confidence_target"] == 1
         assert result["excluded_by_reason"]["incompatible_endpoint"] == 1
         assert result["excluded_by_reason"]["invalid_or_inconsistent_pchembl"] == 1
         assert session.scalar(select(func.count()).select_from(Measurement)) == 1
         assert session.scalar(select(Measurement)).source == "chembl_curated"
-        assert curate_snapshot(session, snapshot, review)["inserted_measurements"] == 1
+        assert curate_snapshot(session, snapshot, review)["dataset_version_id"] == first_version_id
         assert session.scalar(select(func.count()).select_from(Measurement)) == 1
+        first_version = session.get(DatasetVersion, first_version_id)
+        verify_version(first_version)
+        assert first_version.review_blob == review.read_bytes()
+        assert first_version.policy_json["activity"]["type"] == "IC50"
+        assert version_rows(first_version)[0].activity_id == "1"
         with pytest.raises(ValueError, match="manually reviewed"):
             train(session, "chembl")
 
@@ -104,8 +118,27 @@ def test_review_gate_and_curation_report(tmp_path):
         writer.writeheader()
         writer.writerows(rows)
     with session_factory(engine)() as session:
-        assert curate_snapshot(session, snapshot, review)["inserted_measurements"] == 1
+        result = curate_snapshot(session, snapshot, review)
+        assert result["inserted_measurements"] == 1
+        assert result["dataset_version_id"] != first_version_id
         assert session.scalar(select(Measurement)).source_record_id == "5"
+        assert version_rows(session.get(DatasetVersion, first_version_id))[0].activity_id == "1"
+        assert session.get(DatasetVersion, first_version_id).review_blob == first_review_bytes
+        assert version_rows(session.get(DatasetVersion, result["dataset_version_id"]))[0].activity_id == "5"
+
+    rows[2]["decision"] = "exclude"
+    with review.open("w", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=rows[0])
+        writer.writeheader()
+        writer.writerows(rows)
+    with session_factory(engine)() as session:
+        empty = curate_snapshot(session, snapshot, review)
+        assert empty["status"] == "reviewed_empty"
+        assert empty["applied"] is True
+        assert session.scalar(select(func.count()).select_from(Measurement)) == 0
+        assert version_rows(session.get(DatasetVersion, first_version_id))[0].activity_id == "1"
+        with pytest.raises(ValueError, match="reviewed_empty"):
+            train(session, "chembl_curated")
 
 
 def test_snapshot_fetch_is_bounded_and_no_overwrite(tmp_path):

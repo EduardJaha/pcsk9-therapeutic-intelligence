@@ -2,6 +2,7 @@
 
 import csv
 import hashlib
+import io
 import json
 import math
 from collections import Counter
@@ -9,15 +10,31 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import httpx
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 
 from cvti.chemistry import standardize
 from cvti.config import Settings, get_settings
 from cvti.ingest import TARGET_CHEMBL, _save_measurement, request_json
 from cvti.models import Measurement
+from cvti.provenance import code_hashes, create_version, measurement_records, version_summary
 
 
 ENDPOINT_GROUP = "pcsk9_ldlr_binding"
+
+
+def curation_policy() -> dict:
+    """Record both the readable rules and hashes of their implementation."""
+    return {
+        "name": "pcsk9_ldlr_binding", "version": 1,
+        "target_chembl_id": TARGET_CHEMBL, "target_organism": "Homo sapiens",
+        "activity": {"type": "IC50", "relation": "=", "units": "nM", "standard_flag": 1,
+                     "pchembl_min": 3, "pchembl_max": 12, "pchembl_tolerance": 0.1,
+                     "validity_comments": [None, "Manually validated"], "exclude_potential_duplicates": True,
+                     "require_molecule_assay_activity_ids": True, "require_ring_scaffold": True},
+        "assay": {"relationship_type": "D", "confidence_score": 9, "assay_type": "B",
+                  "require_description": True, "manual_endpoint_review": ENDPOINT_GROUP},
+        "implementation_sha256": code_hashes("curation.py", "ingest.py", "chemistry.py"),
+    }
 
 
 def _pages(client: httpx.Client, url: str, key: str, settings: Settings, params: dict, cap: int | None = None) -> list[dict]:
@@ -64,12 +81,16 @@ def fetch_snapshot(path: Path, settings: Settings | None = None, client: httpx.C
             client.close()
 
 
-def _load_snapshot(path: Path) -> dict:
-    payload = json.loads(path.read_text(encoding="utf-8"))
+def _parse_snapshot(raw: bytes) -> dict:
+    payload = json.loads(raw.decode("utf-8"))
     if (payload.get("schema_version") != 1 or payload.get("target_chembl_id") != TARGET_CHEMBL
             or not isinstance(payload.get("activities"), list) or not isinstance(payload.get("assays"), list)):
         raise ValueError("Snapshot is not a version 1 PCSK9 ChEMBL snapshot")
     return payload
+
+
+def _load_snapshot(path: Path) -> dict:
+    return _parse_snapshot(path.read_bytes())
 
 
 def assay_issue(assay: dict) -> str | None:
@@ -142,8 +163,10 @@ def write_review_sheet(snapshot: Path, output: Path) -> dict:
 
 
 def curate_snapshot(session, snapshot: Path, review_sheet: Path) -> dict:
-    payload = _load_snapshot(snapshot)
-    with review_sheet.open(newline="", encoding="utf-8") as file:
+    snapshot_blob = snapshot.read_bytes()
+    review_blob = review_sheet.read_bytes()
+    payload = _parse_snapshot(snapshot_blob)
+    with io.StringIO(review_blob.decode("utf-8"), newline="") as file:
         reader = csv.DictReader(file)
         if not {"assay_chembl_id", "decision", "endpoint_group", "review_note"}.issubset(reader.fieldnames or []):
             raise ValueError("Review sheet needs assay_chembl_id, decision, endpoint_group, and review_note columns")
@@ -158,37 +181,54 @@ def curate_snapshot(session, snapshot: Path, review_sheet: Path) -> dict:
             if decision == "include" and row["endpoint_group"].strip() != ENDPOINT_GROUP:
                 raise ValueError(f"Included assay {assay_id} needs endpoint_group={ENDPOINT_GROUP}")
             review[assay_id] = decision
+    activity_assay_ids = {row.get("assay_chembl_id") for row in payload["activities"]}
+    if set(review) - activity_assay_ids:
+        raise ValueError("Review sheet contains assay IDs absent from the snapshot")
     assays = {row.get("assay_chembl_id"): row for row in payload["assays"]}
     reasons = Counter()
     accepted = []
+    candidate_assays = set()
     for row in payload["activities"]:
         issue = activity_issue(row)
         if issue is None:
             assay_id = row["assay_chembl_id"]
             assay = assays.get(assay_id)
             issue = assay_issue(assay) if assay else "missing_assay_metadata"
-            if issue is None and review.get(assay_id) != "include":
-                issue = "assay_not_approved"
+            if issue is None:
+                candidate_assays.add(assay_id)
+                if review.get(assay_id) != "include":
+                    issue = "assay_not_approved"
         if issue:
             reasons[issue] += 1
         else:
             accepted.append(row)
-    if not accepted:
-        return {"source": "chembl_curated", "endpoint_group": ENDPOINT_GROUP,
-                "snapshot_sha256": hashlib.sha256(snapshot.read_bytes()).hexdigest(),
-                "review_sha256": hashlib.sha256(review_sheet.read_bytes()).hexdigest(),
-                "scanned": len(payload["activities"]), "approved_activity_rows": 0,
-                "inserted_measurements": 0, "applied": False,
-                "excluded_by_reason": dict(sorted(reasons.items()))}
-    # This source represents one reviewed dataset. Replace it as a unit when
-    # decisions change, so previously approved rows cannot linger unnoticed.
-    session.execute(delete(Measurement).where(Measurement.source == "chembl_curated"))
+    pending = sorted(assay_id for assay_id in candidate_assays if review.get(assay_id) not in {"include", "exclude"})
+    status = "pending_review" if pending else "ready" if accepted else "reviewed_empty"
     inserted = 0
-    for row in accepted:
-        inserted += _save_measurement(session, row, "chembl_curated")
+    records = []
+    if status != "pending_review":
+        # The measurement table is a current view. Immutable version records
+        # retain old inputs when a later review replaces this view.
+        session.execute(delete(Measurement).where(Measurement.source == "chembl_curated"))
+        for row in accepted:
+            inserted += _save_measurement(session, row, "chembl_curated")
+        if inserted != len(accepted):
+            raise ValueError("Curated import did not preserve every approved activity")
+        session.flush()
+        rows = session.scalars(select(Measurement).where(Measurement.source == "chembl_curated")).all()
+        records = measurement_records(rows)
+    stats = {"scanned": len(payload["activities"]), "approved_activity_rows": len(accepted),
+             "excluded_by_reason": dict(sorted(reasons.items())), "pending_assays": pending,
+             "snapshot_retrieved_at": payload.get("retrieved_at")}
+    version = create_version(session, source="chembl_curated", status=status, target_id=TARGET_CHEMBL,
+                             endpoint_group=ENDPOINT_GROUP, snapshot_blob=snapshot_blob,
+                             review_blob=review_blob, policy=curation_policy(), records=records, stats=stats)
     session.commit()
+    summary = version_summary(version)
     return {"source": "chembl_curated", "endpoint_group": ENDPOINT_GROUP,
-            "snapshot_sha256": hashlib.sha256(snapshot.read_bytes()).hexdigest(),
-            "review_sha256": hashlib.sha256(review_sheet.read_bytes()).hexdigest(), "applied": True,
+            "dataset_version_id": version.id, "status": status,
+            "manifest_sha256": summary["manifest_sha256"],
+            "snapshot_sha256": summary["snapshot_sha256"],
+            "review_sha256": summary["review_sha256"], "applied": status != "pending_review",
             "scanned": len(payload["activities"]), "approved_activity_rows": len(accepted),
             "inserted_measurements": inserted, "excluded_by_reason": dict(sorted(reasons.items()))}

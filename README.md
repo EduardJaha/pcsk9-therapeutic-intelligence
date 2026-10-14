@@ -93,7 +93,7 @@ If ports 8000/8501 are already in use, set `API_HOST_PORT=18000` and `DASHBOARD_
 
 ## Database migrations
 
-`cvti db upgrade` creates a fresh schema or applies pending Alembic revisions. API startup and other CLI commands call the same upgrade routine. Existing databases made by the first MVP are stamped at the initial revision only when their tables match that baseline, then upgraded without deleting their records. A mismatched schema stops with an error for review. New schema changes should be added as migration files in `migrations/`; do not edit an old revision after it has been used. See the [Alembic migration guide](https://alembic.sqlalchemy.org/en/latest/autogenerate.html).
+`cvti db upgrade` creates a fresh schema or applies pending Alembic revisions. API startup and other CLI commands call the same upgrade routine. Existing databases made by the first MVP are stamped at the initial revision only when their tables match that baseline, then upgraded without deleting their records. A mismatched schema stops with an error for review. Old experiments receive a `legacy_unverified` dataset version because their original snapshot and review were never stored; this migration cannot reconstruct them. New schema changes should be added as migration files in `migrations/`; do not edit an old revision after it has been used. See the [Alembic migration guide](https://alembic.sqlalchemy.org/en/latest/autogenerate.html).
 
 ## Real public data
 
@@ -108,22 +108,26 @@ The review sheet is a CSV that can be opened in a spreadsheet app. A qualified r
 
 ```bash
 cvti chembl curate --snapshot data/pcsk9-chembl-YYYY-MM-DD.json --review data/pcsk9-assay-review-YYYY-MM-DD.csv
-cvti train --source chembl_curated
+cvti datasets list
+cvti datasets show 1
 ```
 
-Read the full [assay curation policy](docs/assay-curation.md) before including records. The software enforces basic quality checks and a manual review gate; it does not replace scientific judgment. If the reviewed set is too small for the scaffold split, training stops. The initial `cvti ingest --source live` command remains available for preliminary exploration of ChEMBL and [Open Targets](https://platform-docs.opentargets.org/data-access/graphql-api), but the unreviewed `chembl` source cannot be used to train the baseline. Experiments record a hash of their training rows, source, sample counts, metrics, and saved model path.
+The curation result prints its actual `dataset_version_id`; substitute that ID for `1` above. A version stores the exact fetched ChEMBL JSON, the review CSV, explicit selection rules and implementation hashes, the selected molecular rows, and SHA-256 checksums in the database. The files can be recovered with `cvti datasets export 1 --kind snapshot --output recovered.json` and the same command with `--kind review`. Re-running identical inputs reuses the version; a changed review or rule implementation creates another. Experiments have a required dataset version link, and training reads that version's stored rows, even if the current measurement table later changes. Choose a historical version with `cvti train --source chembl_curated --dataset-version-id 1`. The default `cvti train --source chembl_curated` selects the newest version and requires status `ready`; pending and empty reviews cannot train. Predictions report the version and whether it has been superseded.
+
+Read the full [assay curation policy](docs/assay-curation.md) before including records. The software enforces basic quality checks and a manual review gate; it does not replace scientific judgment. If the reviewed set is too small for the scaffold split, training stops. The initial `cvti ingest --source live` command remains available for preliminary exploration of ChEMBL and [Open Targets](https://platform-docs.opentargets.org/data-access/graphql-api), but the unreviewed `chembl` source cannot be used to train the baseline. Experiments also record a hash of their training examples, source, sample counts, metrics, and saved model path.
 
 The [14 October 2026 desk review](docs/assay-review-2026-10-14.md) screened all 23 assays in the first saved snapshot and approved none for the narrow direct-binding endpoint. The decision sheet is in `reviews/`; no real-data model has been trained. Original-source verification and independent assay expertise remain necessary before changing an exclusion to inclusion.
 
 The public APIs can be slow or unavailable. `HTTP_MAX_RETRIES`, `HTTP_BACKOFF_SECONDS`, `HTTP_TIMEOUT_SECONDS`, and `CHEMBL_MAX_RECORDS` in `.env` control bounded requests. HTTP 429 and transient 5xx responses are retried with backoff and `Retry-After` when present. Avoid repeatedly querying; for large studies use the providers' bulk downloads.
 
-The built-in fixture is not sourced from either provider. Its source is `synthetic_fixture`; it is kept separate from `chembl` in training and shown as synthetic in the dashboard. Remove the local `data/` directory to reset SQLite data and model artifacts.
+The built-in fixture is not sourced from either provider. Its source is `synthetic_fixture`; it is kept separate from `chembl` in training and shown as synthetic in the dashboard. Back up `data/cvti.db` before resetting local data: it now contains the only in-database copies of dataset versions and experiment history.
 
 ## API and model
 
 - `GET /health`, `GET /summary`
 - `POST /fixtures/load`, `GET /measurements`, `GET /evidence`
 - `POST /experiments` with `{"source":"synthetic_fixture"}` or `{"source":"chembl_curated"}`; `GET /experiments`
+- `GET /dataset-versions`, `GET /dataset-versions/{id}`; `POST /experiments` also accepts `dataset_version_id`
 - `POST /predict` with `{"smiles":"CC1CCCCC1"}`
 
 Molecules are parsed and converted to RDKit charge-parent canonical SMILES. An invalid structure or a molecule with no ring scaffold is rejected. The feature vector is a 2048-bit radius-2 Morgan fingerprint. The illustrative positive class is `pChEMBL IC50 >= 6` (IC50 at or below 1 µM). Duplicate standardized molecules are aggregated by median pChEMBL; contradictory molecules crossing the label threshold are excluded. A deterministic group split keeps Bemis–Murcko scaffolds, and therefore identical molecules, apart between training and test. The classifier is a fixed-seed 150-tree Random Forest. The saved experiment includes balanced accuracy, ROC AUC, train/test counts, and explicit zero-overlap checks.
@@ -143,7 +147,7 @@ The prediction response shows whether the exact molecule or its scaffold occurre
 
 1. **Done here:** locked Python environment, versioned SQLite/PostgreSQL schema, Docker stack, offline fixture-to-dashboard vertical slice, source ingestion, persistence, scaffold-aware baseline, and tests.
 2. **Screened conservatively:** proposed direct PCSK9-LDLR binding endpoint, explicit activity/assay gates, raw snapshot and review CSV workflow. The first 23-assay desk review approved no records; independent expert review and original-source verification are still needed.
-3. Add dataset versioning in the database, temporal/external validation, model calibration, and uncertainty analysis.
+3. **Dataset versioning done:** database copies and checksums of ChEMBL snapshots, review decisions, selection rules, and selected rows; required experiment links. Next add temporal/external validation, model calibration, and uncertainty analysis.
 4. Add authentication and deployment monitoring when remote collaboration or hosting is needed.
 5. Seek experimental validation of any candidate hypotheses before making biological or therapeutic claims.
 

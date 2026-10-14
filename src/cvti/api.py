@@ -7,7 +7,8 @@ from sqlalchemy import func, select
 from cvti.db import init_db, make_engine, session_factory
 from cvti.ingest import ingest_fixture
 from cvti.ml import predict, train
-from cvti.models import Experiment, Measurement, Prediction, TargetEvidence
+from cvti.models import DatasetVersion, Experiment, Measurement, Prediction, TargetEvidence
+from cvti.provenance import verify_version, version_summary
 
 
 class PredictRequest(BaseModel):
@@ -17,6 +18,7 @@ class PredictRequest(BaseModel):
 
 class TrainRequest(BaseModel):
     source: str = Field(default="synthetic_fixture", pattern="^(synthetic_fixture|chembl_curated)$")
+    dataset_version_id: int | None = Field(default=None, gt=0)
 
 
 def create_app(database_url: str | None = None, artifact_dir: str | None = None) -> FastAPI:
@@ -56,9 +58,10 @@ def create_app(database_url: str | None = None, artifact_dir: str | None = None)
     def create_experiment(request: TrainRequest):
         with factory() as session:
             try:
-                run = train(session, request.source, artifact_dir)
+                run = train(session, request.source, artifact_dir, request.dataset_version_id)
                 return {"id": run.id, "data_source": run.data_source, "metrics": run.metrics,
-                        "n_molecules": run.n_molecules, "dataset_hash": run.dataset_hash}
+                        "n_molecules": run.n_molecules, "dataset_hash": run.dataset_hash,
+                        "dataset_version_id": run.dataset_version_id}
             except ValueError as exc:
                 raise HTTPException(422, str(exc)) from exc
 
@@ -68,7 +71,26 @@ def create_app(database_url: str | None = None, artifact_dir: str | None = None)
             runs = session.scalars(select(Experiment).order_by(Experiment.id.desc()).limit(50)).all()
             return [{"id": r.id, "created_at": r.created_at.isoformat(), "data_source": r.data_source,
                      "metrics": r.metrics, "n_molecules": r.n_molecules,
-                     "n_scaffolds": r.n_scaffolds, "dataset_hash": r.dataset_hash} for r in runs]
+                     "n_scaffolds": r.n_scaffolds, "dataset_hash": r.dataset_hash,
+                     "dataset_version_id": r.dataset_version_id} for r in runs]
+
+    @app.get("/dataset-versions")
+    def list_dataset_versions():
+        with factory() as session:
+            versions = session.scalars(select(DatasetVersion).order_by(DatasetVersion.id.desc()).limit(100)).all()
+            return [version_summary(version) for version in versions]
+
+    @app.get("/dataset-versions/{version_id}")
+    def get_dataset_version(version_id: int):
+        with factory() as session:
+            version = session.get(DatasetVersion, version_id)
+            if version is None:
+                raise HTTPException(404, "Dataset version not found")
+            try:
+                verify_version(version)
+            except ValueError as exc:
+                raise HTTPException(409, str(exc)) from exc
+            return {**version_summary(version), "policy": version.policy_json}
 
     @app.get("/measurements")
     def list_measurements(limit: int = 100):
