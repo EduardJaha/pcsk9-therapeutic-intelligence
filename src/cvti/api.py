@@ -12,11 +12,22 @@ from cvti.ml import predict, train
 from cvti.models import DatasetVersion, Experiment, Measurement, Prediction, TargetEvidence
 from cvti.provenance import verify_version, version_summary
 from cvti.reports import assay_reviews, experiment_report, render_experiment_report
+from cvti.workbench import chemical_space, molecule_profile
 
 
 class PredictRequest(BaseModel):
     smiles: str = Field(min_length=1, max_length=1000)
-    experiment_id: int | None = None
+    experiment_id: int | None = Field(default=None, gt=0)
+    save: bool = True
+
+
+class MoleculeRequest(BaseModel):
+    smiles: str = Field(min_length=1, max_length=1000)
+
+
+class CompareRequest(BaseModel):
+    smiles: list[str] = Field(min_length=2, max_length=6)
+    experiment_id: int | None = Field(default=None, gt=0)
 
 
 class TrainRequest(BaseModel):
@@ -145,7 +156,31 @@ def create_app(database_url: str | None = None, artifact_dir: str | None = None)
     def create_prediction(request: PredictRequest):
         with factory() as session:
             try:
-                return predict(session, request.smiles, request.experiment_id)
+                return predict(session, request.smiles, request.experiment_id, save=request.save)
+            except (ValueError, FileNotFoundError) as exc:
+                raise HTTPException(422, str(exc)) from exc
+
+    @app.post("/molecules/profile")
+    def profile_molecule(request: MoleculeRequest):
+        try:
+            return molecule_profile(request.smiles)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+
+    @app.post("/molecules/compare")
+    def compare_molecules(request: CompareRequest):
+        with factory() as session:
+            try:
+                if any(not isinstance(smiles, str) or not 1 <= len(smiles) <= 1000 for smiles in request.smiles):
+                    raise ValueError("Each SMILES must contain 1 to 1000 characters")
+                profiles = [molecule_profile(smiles) for smiles in request.smiles]
+                space = chemical_space(profiles)
+                for profile in profiles:
+                    profile["prediction"] = (predict(session, profile["canonical_smiles"],
+                                                      request.experiment_id, save=False)
+                                             if request.experiment_id is not None else None)
+                return {"molecules": profiles, "chemical_space": space,
+                        "experiment_id": request.experiment_id, "predictions_saved": False}
             except (ValueError, FileNotFoundError) as exc:
                 raise HTTPException(422, str(exc)) from exc
 

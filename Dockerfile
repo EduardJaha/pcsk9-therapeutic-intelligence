@@ -11,6 +11,7 @@ COPY pyproject.toml uv.lock README.md alembic.ini dashboard.py ./
 COPY src ./src
 COPY migrations ./migrations
 COPY fixtures ./fixtures
+COPY .streamlit ./.streamlit
 RUN uv sync --frozen --no-dev --no-editable
 
 EXPOSE 8000

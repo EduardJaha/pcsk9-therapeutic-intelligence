@@ -67,6 +67,34 @@ def test_offline_api_vertical_slice(tmp_path):
         assert "Dataset classes:" in markdown.text
         assert "| 5 |" in markdown.text
         assert "synthetic_fixture" in markdown.text
+        profile = client.post("/molecules/profile", json={"smiles": "Oc1ccccc1"})
+        assert profile.status_code == 200
+        assert profile.json()["formula"] == "C6H6O"
+        assert profile.json()["properties"]["molecular_weight"] == pytest.approx(94.11, abs=0.02)
+        assert "<svg" in profile.json()["svg"]
+        assert client.post("/molecules/profile", json={"smiles": "invalid smiles"}).status_code == 422
+        comparison = client.post("/molecules/compare", json={"smiles": ["Oc1ccccc1", "Cc1ccccc1"],
+                                                               "experiment_id": data["id"]})
+        assert comparison.status_code == 200, comparison.text
+        assert comparison.json()["predictions_saved"] is False
+        assert len(comparison.json()["chemical_space"]["points"]) == 2
+        assert all(np.isfinite(point["pc1"]) and np.isfinite(point["pc2"])
+                   for point in comparison.json()["chemical_space"]["points"])
+        for molecule in comparison.json()["molecules"]:
+            assert molecule["prediction"]["experiment_id"] == data["id"]
+            assert molecule["prediction"]["prediction_id"] is None
+        structures_only = client.post("/molecules/compare", json={"smiles": ["Oc1ccccc1", "Cc1ccccc1"]})
+        assert structures_only.status_code == 200
+        assert all(m["prediction"] is None for m in structures_only.json()["molecules"])
+        for values in (["Oc1ccccc1", "c1ccccc1O"], ["Oc1ccccc1", "invalid"], ["Oc1ccccc1"] * 7):
+            assert client.post("/molecules/compare", json={"smiles": values}).status_code == 422
+        assert client.post("/molecules/compare", json={"smiles": ["Oc1ccccc1", "Cc1ccccc1"],
+                                                       "experiment_id": 999}).status_code == 422
+        assert client.get("/summary").json()["predictions"] == 0
+        preview = client.post("/predict", json={"smiles": "CC1CCCCC1", "experiment_id": data["id"], "save": False})
+        assert preview.status_code == 200
+        assert preview.json()["prediction_id"] is None
+        assert client.get("/summary").json()["predictions"] == 0
         prediction = client.post("/predict", json={"smiles": "CC1CCCCC1"})
         assert prediction.status_code == 200, prediction.text
         assert 0 <= prediction.json()["probability_exploratory_activity"] <= 1
@@ -80,6 +108,15 @@ def test_standardization_and_invalid_molecule():
     assert standardize("[Na+].O=C([O-])c1ccccc1")[0] == "O=C(O)c1ccccc1"
     with pytest.raises(ValueError):
         standardize("not a smiles")
+
+
+def test_structure_comparison_handles_identical_fingerprints_without_nan(tmp_path):
+    with TestClient(create_app(f"sqlite:///{tmp_path / 'structures.db'}")) as client:
+        result = client.post("/molecules/compare", json={"smiles": ["C[C@H]1CCCCO1", "C[C@@H]1CCCCO1"]})
+        assert result.status_code == 200, result.text
+        assert result.json()["chemical_space"]["explained_variance_ratio"] == [0.0, 0.0]
+        assert all(point["pc1"] == 0 and point["pc2"] == 0 for point in result.json()["chemical_space"]["points"])
+        assert client.get("/summary").json()["predictions"] == 0
 
 
 def test_retry_after_rate_limit(monkeypatch):

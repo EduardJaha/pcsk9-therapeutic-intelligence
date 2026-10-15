@@ -37,6 +37,7 @@ services:
     command: ["streamlit", "run", "dashboard.py", "--server.address", "0.0.0.0", "--server.port", "8501", "--server.headless", "true"]
     environment:
       API_URL: http://api:8000
+      API_REFERENCE_URL: http://127.0.0.1:${API_HOST_PORT:-8000}/docs
       STREAMLIT_BROWSER_GATHER_USAGE_STATS: "false"
     ports:
       - "127.0.0.1:${DASHBOARD_HOST_PORT:-8501}:8501"

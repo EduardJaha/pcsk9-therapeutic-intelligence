@@ -13,7 +13,7 @@ from sqlalchemy import select
 from cvti.chemistry import fingerprint, standardize
 from cvti.config import get_settings
 from cvti.ingest import TARGET_CHEMBL
-from cvti.models import DatasetVersion, Experiment, Measurement, Prediction
+from cvti.models import PREDICTION_LABEL, DatasetVersion, Experiment, Measurement, Prediction
 from cvti.provenance import (canonical_bytes, code_hashes, create_version,
                              measurement_records, verify_version, version_rows)
 
@@ -181,7 +181,7 @@ def train(session, source: str = "synthetic_fixture", artifact_dir: str | None =
     return run
 
 
-def predict(session, smiles: str, experiment_id: int | None = None) -> dict:
+def predict(session, smiles: str, experiment_id: int | None = None, *, save: bool = True) -> dict:
     query = select(Experiment).order_by(Experiment.id.desc())
     if experiment_id is not None:
         query = query.where(Experiment.id == experiment_id)
@@ -202,14 +202,17 @@ def predict(session, smiles: str, experiment_id: int | None = None) -> dict:
     ):
         raise ValueError("Model artifact does not match dataset version")
     probability = float(bundle["model"].predict_proba(fingerprint(canonical).reshape(1, -1))[0, 1])
-    record = Prediction(experiment_id=run.id, input_smiles=smiles, canonical_smiles=canonical,
-                        probability=probability)
-    session.add(record)
-    session.commit()
+    prediction_id = None
+    if save:
+        record = Prediction(experiment_id=run.id, input_smiles=smiles, canonical_smiles=canonical,
+                            probability=probability)
+        session.add(record)
+        session.commit()
+        prediction_id = record.id
     latest_version_id = session.scalar(select(DatasetVersion.id).where(
         DatasetVersion.source == run.data_source).order_by(DatasetVersion.id.desc()))
-    return {"prediction_id": record.id, "experiment_id": run.id, "canonical_smiles": canonical,
-            "probability_exploratory_activity": probability, "label": record.label,
+    return {"prediction_id": prediction_id, "experiment_id": run.id, "canonical_smiles": canonical,
+            "probability_exploratory_activity": probability, "label": PREDICTION_LABEL,
             "source": run.data_source, "seen_in_training": canonical in bundle["train_smiles"],
             "scaffold_seen_in_training": scaffold in bundle["train_scaffolds"],
             "dataset_version_id": version.id, "dataset_version_status": version.status,

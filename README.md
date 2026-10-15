@@ -17,6 +17,23 @@ Open Targets GraphQL ┘                            │
 
 This is one application package (`src/cvti`), one database, and local model artifacts. Docker Compose can run PostgreSQL alone or the full API and dashboard stack. There are no cloud GPUs, queues, Kubernetes components, or LLM training jobs.
 
+## Research workbench
+
+The Streamlit interface uses a sidebar workspace, molecular structure cards and interactive charts. Open `http://127.0.0.1:8501/` and choose a page:
+
+| Page | What it does |
+|---|---|
+| Overview | Shows research readiness, saved experiment counts, scaffold evaluation and a preview of stored molecules. |
+| Molecule profile | Draws a supported structure, calculates descriptors, previews an explicitly selected model's score and optionally saves a prediction. |
+| Compare molecules | Compares two to six structures, calculated properties and Morgan-fingerprint PCA positions; optionally adds scores from the selected experiment and exports a CSV. |
+| Assay review | Filters preserved assay decisions and opens source documents, full descriptions and exclusion reasons. |
+| Models & reports | Runs synthetic demonstrations, displays class balance and scaffold holdouts, and exports experiment reports. |
+| Datasets & evidence | Inspects version checksums, stored selection rules and contextual disease evidence. |
+
+The **Scoring model** selector controls both profile scores and molecule comparisons. Select **Structures only** for calculations without a model. Comparison scores and profile previews do not create prediction records; **Save prediction** does. Invalid submissions clear the previous result. Model and dataset IDs are carried with every returned score. A direct link to the comparison workspace is `http://127.0.0.1:8501/?view=Compare%20molecules`.
+
+Structure cards report molecular weight, calculated logP and polar surface area; profiles also show hydrogen-bond donors, acceptors and rotatable bonds. These are calculated descriptors, not measured ADMET endpoints or desirability rankings. The interface currently supports the exploratory PCSK9 IC50 classifier; docking, ADMET endpoint models and calibrated uncertainty have not been established. Fingerprint PCA is fitted to the compared molecules only, so its axes and distances change when the comparison set changes. It is a structural visualization, not an applicability-domain validation.
+
 ## Quick start: macOS and Linux
 
 Use Python 3.12, the version used for the Phase 1 smoke test. From this repository:
@@ -91,6 +108,8 @@ Open `http://127.0.0.1:8501` for Streamlit and `http://127.0.0.1:8000/docs` for 
 
 If ports 8000/8501 are already in use, set `API_HOST_PORT=18000` and `DASHBOARD_HOST_PORT=18501` in `.env` before starting Compose, then open the corresponding host ports. The containers continue to communicate on their internal ports.
 
+Compose sets the dashboard's browser API reference link to the configured host port. When running a dashboard against another API manually, `API_URL` controls its server connection and the optional `API_REFERENCE_URL` controls the browser documentation link.
+
 ## Database migrations
 
 `cvti db upgrade` creates a fresh schema or applies pending Alembic revisions. API startup and other CLI commands call the same upgrade routine. Existing databases made by the first MVP are stamped at the initial revision only when their tables match that baseline, then upgraded without deleting their records. A mismatched schema stops with an error for review. Old experiments receive a `legacy_unverified` dataset version because their original snapshot and review were never stored; this migration cannot reconstruct them. New schema changes should be added as migration files in `migrations/`; do not edit an old revision after it has been used. See the [Alembic migration guide](https://alembic.sqlalchemy.org/en/latest/autogenerate.html).
@@ -137,6 +156,9 @@ Under **Inspect experiment evaluation**, select an experiment and download its *
 - `GET /dataset-versions/{id}/assays` for recorded assay review details
 - `GET /experiments/{id}/report` for JSON, or `?format=markdown` for a downloadable report; exports verify dataset integrity
 - `POST /predict` with `{"smiles":"CC1CCCCC1"}`
+- `POST /predict` also accepts an explicit `experiment_id` and `save:false` for a preview; saving remains the default
+- `POST /molecules/profile` with `{"smiles":"Oc1ccccc1"}` returns a 2D SVG and calculated descriptors
+- `POST /molecules/compare` with `{"smiles":["Oc1ccccc1","Cc1ccccc1"],"experiment_id":7}` compares up to six distinct standardized structures without saving predictions; omit the experiment ID for structures only
 
 Molecules are parsed and converted to RDKit charge-parent canonical SMILES. An invalid structure or a molecule with no ring scaffold is rejected. The feature vector is a 2048-bit radius-2 Morgan fingerprint. The illustrative positive class is `pChEMBL IC50 >= 6` (IC50 at or below 1 µM). Duplicate standardized molecules are aggregated by median pChEMBL; contradictory molecules crossing the label threshold are excluded. Five distinct, deterministic holdouts reserve 25% of the scaffold groups and keep Bemis–Murcko scaffolds and identical molecules apart. The fraction of molecules held out can vary with scaffold group sizes. Each split must contain both label classes in train and test; the report gives the number of attempted and rejected partitions. Five valid distinct partitions are required, otherwise training stops. The fixed-seed 150-tree Random Forest is fitted separately on each split. The experiment stores dataset and per-split class counts, balanced accuracy, ROC AUC, average precision, confusion counts, scaffold counts, and zero-overlap checks. It also reports the median and range across splits. After evaluation, a separate prediction model is refit on all molecules in the versioned dataset.
 
@@ -149,7 +171,7 @@ The prediction response shows whether the exact molecule or its scaffold occurre
 - PCSK9 is a biologically established cholesterol target, but a PCSK9 association score is not proof that a particular molecule treats cardiovascular disease. See the [Open Targets PCSK9 page](https://platform.opentargets.org/target/ENSG00000169174).
 - ChEMBL assays differ in constructs, formats, conditions, and source quality. The new manual review gate narrows the intended endpoint, but it does not establish that included assays are comparable; this MVP does not establish selectivity, cell activity, exposure, toxicity, or in vivo efficacy.
 - Even repeated scaffold splitting can overestimate prospective performance. The holdouts overlap, and requiring both classes filters the possible partitions; their median and range are descriptive, not independent confidence intervals. The dataset may be small, class imbalanced, biased toward published chemistry, and related across scaffold families.
-- Charge-parent standardization can erase relevant salt/protonation information; stereochemistry is retained but may be missing from source structures. Acyclic molecules are excluded from this scaffold-split MVP.
+- Charge-parent standardization can erase relevant salt/protonation information; stereochemistry is retained in canonical SMILES but may be missing from source structures. The current Morgan fingerprints do not encode chirality, so stereoisomers can have identical feature vectors and PCA positions. Acyclic molecules are excluded from this scaffold-split MVP.
 - The Random Forest is a baseline, not a medicinal chemistry decision system. No uncertainty calibration, applicability-domain validation, external benchmark, temporal split, or independent experimental confirmation is included. The current reviewed ChEMBL version approved no measurements, so there is no valid real-data model or later independent dataset to evaluate. A future external or temporal holdout needs another independently reviewed, endpoint-compatible dataset with both classes and enough distinct molecules and scaffolds; overlapping molecules must be excluded before calling it independent.
 - Never mix the synthetic fixture with real ChEMBL records when interpreting results. The database separates sources, and training requires a source choice.
 

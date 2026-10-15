@@ -5,6 +5,8 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from cvti.db import Base
 
+PREDICTION_LABEL = "Research hypothesis only; not a validated drug"
+
 
 def utcnow():
     return datetime.now(timezone.utc)
@@ -101,4 +103,4 @@ class Prediction(Base):
     input_smiles: Mapped[str] = mapped_column(Text)
     canonical_smiles: Mapped[str] = mapped_column(Text)
     probability: Mapped[float] = mapped_column(Float)
-    label: Mapped[str] = mapped_column(String(120), default="Research hypothesis only; not a validated drug")
+    label: Mapped[str] = mapped_column(String(120), default=PREDICTION_LABEL)
