@@ -19,6 +19,8 @@ This is one application package (`src/cvti`), one database, and local model arti
 
 ## Research workbench
 
+For a guided first session, follow the [step-by-step tutorial](docs/tutorial.md). Start with structure profiles and comparisons without adding data; load the synthetic demonstration only when you choose to.
+
 The Streamlit interface uses a sidebar workspace, molecular structure cards and interactive charts. Open `http://127.0.0.1:8501/` and choose a page:
 
 | Page | What it does |
