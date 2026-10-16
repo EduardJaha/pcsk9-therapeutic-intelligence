@@ -4,10 +4,8 @@ import sys
 from pathlib import Path
 from sqlalchemy import select, text
 
-from cvti.curation import curate_snapshot, fetch_snapshot, write_review_sheet
 from cvti.db import init_db, make_engine, session_factory, prepare_database
 from cvti.ingest import SourceUnavailable, ingest_fixture, ingest_live
-from cvti.ml import predict, train
 from cvti.models import DatasetVersion
 from cvti.provenance import verify_version, version_summary
 
@@ -123,6 +121,7 @@ def main():
         return
     if args.command == "chembl" and args.action == "snapshot":
         try:
+            from cvti.curation import fetch_snapshot
             print(json.dumps(fetch_snapshot(args.output), indent=2))
         except (SourceUnavailable, ValueError, OSError) as exc:
             print(f"Unable to save snapshot: {exc}", file=sys.stderr)
@@ -130,6 +129,7 @@ def main():
         return
     if args.command == "chembl" and args.action == "review-sheet":
         try:
+            from cvti.curation import write_review_sheet
             print(json.dumps(write_review_sheet(args.snapshot, args.output), indent=2))
         except (ValueError, OSError, json.JSONDecodeError) as exc:
             print(f"Unable to create review sheet: {exc}", file=sys.stderr)
@@ -174,6 +174,7 @@ def main():
             if args.command == "ingest":
                 result = ingest_fixture(session) if args.source == "fixture" else ingest_live(session)
             elif args.command == "chembl":
+                from cvti.curation import curate_snapshot
                 result = curate_snapshot(session, args.snapshot, args.review)
             elif args.command == "datasets":
                 if args.action == "list":
@@ -210,10 +211,12 @@ def main():
                 from cvti.evaluation import evaluate_existing
                 result = evaluate_existing(session, args.experiment_id, args.dataset_version_id, mode=args.mode)
             elif args.command == "train":
+                from cvti.ml import train
                 run = train(session, args.source, dataset_version_id=args.dataset_version_id, protocol_id=args.protocol_id, model_kind=args.model_kind)
                 result = {"experiment_id": run.id, "dataset_version_id": run.dataset_version_id,
                           "source": run.data_source, "metrics": run.metrics}
             else:
+                from cvti.ml import predict
                 result = predict(session, args.smiles, args.experiment_id)
     except (SourceUnavailable, ValueError, RuntimeError, OSError, json.JSONDecodeError) as exc:
         print(f"Unable to complete {args.command}: {exc}", file=sys.stderr)

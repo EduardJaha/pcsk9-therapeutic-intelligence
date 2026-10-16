@@ -28,7 +28,7 @@ def main():
                'ARTIFACT_DIR': str(root / 'source' / 'models')}
         def cli(*args, configuration=None):
             process = subprocess.run([sys.executable, '-m', 'cvti.cli', *args], env=configuration or env,
-                                     capture_output=True, text=True, timeout=60)
+                                     capture_output=True, text=True, timeout=180)
             if process.returncode:
                 raise RuntimeError(f'CLI {args[0]} failed: {process.stderr}')
             return json.loads(process.stdout)

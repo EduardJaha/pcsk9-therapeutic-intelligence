@@ -4,11 +4,11 @@ Updated 2026-10-16. Task definitions: [approved roadmap](roadmap.md). User decis
 
 | Task | State | Delivered / exact remaining requirement |
 |---|---|---|
-| R1 | Verified complete | GitHub SQLite/offline and PostgreSQL migration/vertical-slice/restore jobs pass ([verified run](https://github.com/EduardJaha/pcsk9-therapeutic-intelligence/actions/runs/38888476521)). Expanded release checks also run on subsequent pushes. |
+| R1 | Verified complete | GitHub SQLite/offline and PostgreSQL migration/vertical-slice/restore jobs pass ([verified run](https://github.com/EduardJaha/pcsk9-therapeutic-intelligence/actions/runs/38889540407)). Expanded release checks also run on subsequent pushes. |
 | R2 | Verified complete | Create/inspect/verify/restore, original checksums/schema/version, stopped-writer guards, SQLite/PostgreSQL relocation, preserved records and tamper/path tests. Current workspace backed up locally; no research data pushed. |
 | R3 | Verified complete | Additive legacy-preserving migration; code/environment/library/parameters/features/seed provenance, exact assignments, atomic writes and pre-load checksum verification. Existing old experiment retains explicitly unknown metadata. |
 | R4 | Verified complete | Read-only doctor; occupied-port messages; foreground API/dashboard/worker launcher, Ctrl+C cleanup, Windows/macOS/Linux helpers. Launcher/recovery smoke test passes locally. Windows helper is supplied; Windows was not executed on this Mac. |
-| R5 | In progress | Complete local/native PostgreSQL and fresh-workspace CLI/service/recovery exercise passed. Final non-editable fresh-checkout verification and release tag in progress. Docker engine unavailable on this Mac; PostgreSQL container exercised in GitHub. |
+| R5 | Verified complete | Full native PostgreSQL suite, empty/populated dashboard, real CLI/service/restore exercise, and a fresh checkout installed without editable source all passed. GitHub also verifies installed-package recovery. Documented v0.2.0 release. Docker engine unavailable on this Mac; PostgreSQL container exercised in GitHub. |
 | D1 | In progress | [Feasibility assessment](pcsk9-feasibility.md) and [23-assay evidence register](../reviews/pcsk9-evidence-register.csv) delivered. Recommendation: pause real training. Original protocols, potential usable coverage, reuse terms and qualified sign-off remain unresolved. |
 | D2 | Verified complete | Schema-2 snapshots preserve exact response bytes/hashes, timing, observed release/caps/completion; capped/interrupted pulls retained and blocked from curation. Named target JSON bulk-extract importer preserves original bytes and supplied release attribution; separate bounded Open Targets context snapshots. New cases tested with mocked HTTP. |
 | D3 | Verified complete | New approvals require reviewer/date/primary-source/constructs/method/conditions. Browser drafts do not curate until explicit submission. Historical manifests preserved; software tests verify revisions. This is recorded attribution, not expert credential verification or real assay approval. |
@@ -33,6 +33,7 @@ Updated 2026-10-16. Task definitions: [approved roadmap](roadmap.md). User decis
 ## Verification evidence
 
 - Full local test run including native PostgreSQL: **34 passed** (schema/migrations/backup/provenance/HTTP mocks/review history/protocols/baselines/projects/jobs/dashboard).
+- Fresh checkout at the release code: installed from the lockfile with `--no-editable`; real CLI/service/recovery smoke **passed**.
 - `python scripts/release_smoke.py`: real CLI + API + Streamlit + worker + checkpointed mixed CSV + relocated restore **passed**; restored model checksum and output matched.
 - GitHub Actions: both SQLite and PostgreSQL green after fixing service health-check quoting. The workflow also verifies a non-editable installed package with the release smoke script.
 - Current user workspace: original 24 synthetic measurements, two evidence rows, one dataset version, one experiment and one prediction preserved; default local project added by migration. No new demo data loaded into this workspace during implementation.
