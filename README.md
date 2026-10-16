@@ -17,6 +17,10 @@ Open Targets GraphQL ┘                            │
 
 This is one application package (`src/cvti`), one database, and local model artifacts. Docker Compose can run PostgreSQL alone or the full API and dashboard stack. There are no cloud GPUs, queues, Kubernetes components, or LLM training jobs.
 
+## Roadmap and local operations
+
+See the [approved implementation roadmap](docs/roadmap.md), [verified progress](docs/progress.md), and [startup, diagnostics and recovery guide](docs/operations.md).
+
 ## Research workbench
 
 For a guided first session, follow the [step-by-step tutorial](docs/tutorial.md). Start with structure profiles and comparisons without adding data; load the synthetic demonstration only when you choose to.

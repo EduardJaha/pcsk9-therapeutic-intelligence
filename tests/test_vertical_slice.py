@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from pathlib import Path
 from alembic import command
 from alembic.config import Config
+from alembic.script import ScriptDirectory
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 from sqlalchemy import inspect, select, text
@@ -203,7 +204,7 @@ def test_migration_preserves_legacy_database(tmp_path):
         connection.execute(text("DROP TABLE alembic_version"))
     init_db(engine)
     with engine.connect() as connection:
-        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "6e4a2f9d1c08"
+        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == ScriptDirectory.from_config(config).get_current_head()
         assert connection.execute(text("SELECT disease_name FROM target_evidence")).scalar_one() == "Preserve me"
         legacy_id = connection.execute(text("SELECT dataset_version_id FROM experiments")).scalar_one()
         assert legacy_id > 0

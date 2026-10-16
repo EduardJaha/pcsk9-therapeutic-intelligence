@@ -12,6 +12,8 @@ from cvti.ml import predict, train
 from cvti.models import DatasetVersion, Experiment, Measurement, Prediction, TargetEvidence
 from cvti.provenance import verify_version, version_summary
 from cvti.reports import assay_reviews, experiment_report, render_experiment_report
+from cvti.config import get_settings
+from cvti.workspace_lock import workspace_lock
 from cvti.workbench import chemical_space, molecule_profile
 
 
@@ -41,9 +43,12 @@ def create_app(database_url: str | None = None, artifact_dir: str | None = None)
 
     @asynccontextmanager
     async def lifespan(app):
-        init_db(engine)
-        yield
-        engine.dispose()
+        with workspace_lock(str(engine.url), artifact_dir or get_settings().artifact_dir):
+            init_db(engine)
+            try:
+                yield
+            finally:
+                engine.dispose()
 
     app = FastAPI(title="PCSK9 Research Intelligence MVP", version="0.1.0", lifespan=lifespan)
 
@@ -86,7 +91,8 @@ def create_app(database_url: str | None = None, artifact_dir: str | None = None)
             return [{"id": r.id, "created_at": r.created_at.isoformat(), "data_source": r.data_source,
                      "metrics": r.metrics, "n_molecules": r.n_molecules,
                      "n_scaffolds": r.n_scaffolds, "dataset_hash": r.dataset_hash,
-                     "dataset_version_id": r.dataset_version_id} for r in runs]
+                     "dataset_version_id": r.dataset_version_id,
+                     "artifact_sha256": r.artifact_sha256, "provenance": r.provenance_json} for r in runs]
 
     @app.get("/dataset-versions")
     def list_dataset_versions():

@@ -1,6 +1,8 @@
 """A deliberately small, auditable IC50 classification baseline."""
 import hashlib
 import json
+import os
+from uuid import uuid4
 from pathlib import Path
 
 import joblib
@@ -12,6 +14,7 @@ from sqlalchemy import select
 
 from cvti.chemistry import fingerprint, standardize
 from cvti.config import get_settings
+from cvti.training_provenance import capture_provenance, file_sha256, verify_artifact
 from cvti.ingest import TARGET_CHEMBL
 from cvti.models import PREDICTION_LABEL, DatasetVersion, Experiment, Measurement, Prediction
 from cvti.provenance import (canonical_bytes, code_hashes, create_version,
@@ -132,6 +135,7 @@ def train(session, source: str = "synthetic_fixture", artifact_dir: str | None =
             y[test_idx], predictions, labels=[0, 1]).ravel())
         split_results.append({
             "split": split_number,
+            "train_smiles": sorted(train_smiles), "test_smiles": sorted(test_smiles),
             "train_class_counts": _class_counts(y[train_idx]),
             "test_class_counts": _class_counts(y[test_idx]),
             "n_train_scaffolds": len(train_scaffolds), "n_test_scaffolds": len(test_scaffolds),
@@ -170,14 +174,24 @@ def train(session, source: str = "synthetic_fixture", artifact_dir: str | None =
                      metrics=metrics, dataset_hash=dataset_hash, artifact_path="")
     session.add(run)
     session.flush()
+    run.provenance_json = capture_provenance()
     directory = Path(artifact_dir or get_settings().artifact_dir)
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / f"experiment-{run.id}.joblib"
-    joblib.dump({"model": model, "train_smiles": sorted(train_smiles),
-                "train_scaffolds": sorted(train_scaffolds), "dataset_hash": dataset_hash,
-                "dataset_version_id": version.id, "manifest_sha256": version.manifest_sha256}, path)
-    run.artifact_path = str(path.resolve())
-    session.commit()
+    temporary = path.with_name(path.name + '.' + uuid4().hex + '.tmp')
+    try:
+        joblib.dump({"model": model, "train_smiles": sorted(train_smiles),
+                     "train_scaffolds": sorted(train_scaffolds), "dataset_hash": dataset_hash,
+                     "dataset_version_id": version.id, "manifest_sha256": version.manifest_sha256}, temporary)
+        run.artifact_sha256 = file_sha256(temporary)
+        os.replace(temporary, path)
+        run.artifact_path = str(path.resolve())
+        session.commit()
+    except Exception:
+        session.rollback()
+        temporary.unlink(missing_ok=True)
+        path.unlink(missing_ok=True)
+        raise
     return run
 
 
@@ -193,7 +207,8 @@ def predict(session, smiles: str, experiment_id: int | None = None, *, save: boo
         raise ValueError("Experiment dataset version is missing")
     verify_version(version)
     canonical, scaffold = standardize(smiles)
-    bundle = joblib.load(run.artifact_path)  # only artifacts written by this application
+    artifact = verify_artifact(run)
+    bundle = joblib.load(artifact)  # only artifacts written by this application
     if bundle["dataset_hash"] != run.dataset_hash:
         raise ValueError("Model artifact does not match experiment record")
     if version.status != "legacy_unverified" and (
@@ -211,7 +226,8 @@ def predict(session, smiles: str, experiment_id: int | None = None, *, save: boo
         prediction_id = record.id
     latest_version_id = session.scalar(select(DatasetVersion.id).where(
         DatasetVersion.source == run.data_source).order_by(DatasetVersion.id.desc()))
-    return {"prediction_id": prediction_id, "experiment_id": run.id, "canonical_smiles": canonical,
+    return {"prediction_id": prediction_id,
+        "artifact_integrity": "verified" if run.artifact_sha256 else "legacy_unverified", "experiment_id": run.id, "canonical_smiles": canonical,
             "probability_exploratory_activity": probability, "label": PREDICTION_LABEL,
             "source": run.data_source, "seen_in_training": canonical in bundle["train_smiles"],
             "scaffold_seen_in_training": scaffold in bundle["train_scaffolds"],

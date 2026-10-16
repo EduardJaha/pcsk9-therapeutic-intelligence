@@ -102,14 +102,17 @@ def experiment_report(run: Experiment, version: DatasetVersion) -> dict:
             or run.target_id != version.target_id):
         raise ValueError("Experiment and dataset version do not match")
     return {
-        "report_schema_version": 1, "generated_at": datetime.now(timezone.utc).isoformat(),
+        "report_schema_version": 2, "generated_at": datetime.now(timezone.utc).isoformat(),
         "research_notice": RESEARCH_NOTICE,
         "experiment": {"id": run.id, "created_at": run.created_at.isoformat(),
                        "target_id": run.target_id, "source": run.data_source,
                        "model_kind": run.model_kind, "activity_type": run.activity_type,
                        "threshold_pchembl": run.threshold_pchembl,
                        "n_molecules": run.n_molecules, "n_scaffolds": run.n_scaffolds,
-                       "dataset_hash": run.dataset_hash, "metrics": run.metrics},
+                       "dataset_hash": run.dataset_hash, "metrics": run.metrics,
+                       "artifact_sha256": run.artifact_sha256,
+                       "training_provenance": run.provenance_json,
+                       "provenance_status": "recorded" if run.provenance_json else "legacy_unknown"},
         "dataset_version": {**version_summary(version), "selection_rules": version.policy_json},
         "assay_reviews": assay_reviews(version),
         "limitations": [
@@ -141,7 +144,10 @@ def render_experiment_report(report: dict) -> str:
              f"Training examples SHA-256: {run['dataset_hash']}"]
     for name in ("manifest", "snapshot", "review", "policy", "records"):
         lines.append(f"{name.capitalize()} SHA-256: {version.get(name + '_sha256') or 'not recorded'}")
-    lines += ["", "## Evaluation", ""]
+    lines += ["", "## Training provenance", "", "```json",
+              json.dumps(run.get("training_provenance"), indent=2), "```",
+              f"Model artifact SHA-256: {run.get('artifact_sha256') or 'unknown (legacy)'}",
+              "", "## Evaluation", ""]
     if metrics.get("class_counts"):
         counts = metrics["class_counts"]
         lines.append(f"Dataset classes: inactive={counts['inactive']}, active={counts['active']}")

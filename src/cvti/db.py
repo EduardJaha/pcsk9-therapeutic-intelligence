@@ -51,7 +51,7 @@ def init_db(engine):
                 if change[0] == "add_table":
                     return change[1].name == "dataset_versions"
                 if change[0] == "add_column":
-                    return change[2] == "experiments" and change[3].name == "dataset_version_id"
+                    return change[2] == "experiments" and change[3].name in {"dataset_version_id", "provenance_json", "artifact_sha256"}
                 if change[0] == "add_fk":
                     fk = change[1]
                     return (fk.table.name == "experiments"

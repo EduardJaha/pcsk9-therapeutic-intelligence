@@ -44,7 +44,52 @@ def main():
     predict_parser = sub.add_parser("predict", help="Save exploratory prediction")
     predict_parser.add_argument("smiles")
     predict_parser.add_argument("--experiment-id", type=int)
+    doctor_parser = sub.add_parser("doctor", help="Read-only configuration, database and server checks")
+    start_parser = sub.add_parser("start", help="Run both local servers; Ctrl+C stops both")
+    for local in (doctor_parser, start_parser):
+        local.add_argument("--api-port", type=int, default=8000)
+        local.add_argument("--dashboard-port", type=int, default=8501)
+    backup_parser = sub.add_parser("backup", help="Checksummed workspace backup and recovery")
+    backup_sub = backup_parser.add_subparsers(dest="action", required=True)
+    create = backup_sub.add_parser("create")
+    create.add_argument("--output", type=Path, required=True)
+    create.add_argument("--services-stopped", action="store_true")
+    for action in ("inspect", "verify", "restore"):
+        backup_action = backup_sub.add_parser(action)
+        backup_action.add_argument("archive", type=Path)
+        if action == "restore":
+            backup_action.add_argument("--destination", type=Path, required=True)
+            backup_action.add_argument("--database-url")
+            backup_action.add_argument("--replace", action="store_true")
+            backup_action.add_argument("--services-stopped", action="store_true")
     args = parser.parse_args()
+    if args.command in {"doctor", "start", "backup"}:
+        from cvti.config import get_settings
+        try:
+            settings = get_settings()
+            if args.command == "doctor":
+                from cvti.doctor import diagnose
+                result = diagnose(settings, api_port=args.api_port, dashboard_port=args.dashboard_port)
+                print(json.dumps(result, indent=2))
+                return
+            if args.command == "start":
+                from cvti.launch import start
+                start(args.api_port, args.dashboard_port)
+                return
+            from cvti.backup import create_backup, inspect_backup, restore_backup
+            if args.action == "create":
+                result = create_backup(settings.database_url, settings.artifact_dir, args.output,
+                                       services_stopped=args.services_stopped)
+            elif args.action == "restore":
+                result = restore_backup(args.archive, args.destination, database_url=args.database_url,
+                                        replace=args.replace, services_stopped=args.services_stopped)
+            else:
+                result = inspect_backup(args.archive)
+            print(json.dumps(result, indent=2))
+        except (ValueError, RuntimeError, OSError) as exc:
+            print(f"Unable to complete {args.command}: {exc}", file=sys.stderr)
+            raise SystemExit(2) from exc
+        return
     if args.command == "chembl" and args.action == "snapshot":
         try:
             print(json.dumps(fetch_snapshot(args.output), indent=2))
@@ -59,8 +104,15 @@ def main():
             print(f"Unable to create review sheet: {exc}", file=sys.stderr)
             raise SystemExit(2) from exc
         return
+    from cvti.config import get_settings
+    from cvti.workspace_lock import workspace_lock
+    settings = get_settings()
     engine = make_engine()
+    lock = workspace_lock(settings.database_url, settings.artifact_dir)
+    acquired = False
     try:
+        lock.__enter__()
+        acquired = True
         init_db(engine)
         if args.command == "db":
             with engine.connect() as connection:
@@ -101,6 +153,10 @@ def main():
     except (SourceUnavailable, ValueError, RuntimeError, OSError, json.JSONDecodeError) as exc:
         print(f"Unable to complete {args.command}: {exc}", file=sys.stderr)
         raise SystemExit(2) from exc
+    finally:
+        engine.dispose()
+        if acquired:
+            lock.__exit__(None, None, None)
     print(json.dumps(result, indent=2))
 
 

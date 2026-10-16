@@ -91,6 +91,8 @@ class Experiment(Base):
     metrics: Mapped[dict] = mapped_column(JSON)
     dataset_hash: Mapped[str] = mapped_column(String(64))
     artifact_path: Mapped[str] = mapped_column(Text)
+    artifact_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    provenance_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
 
 class Prediction(Base):
