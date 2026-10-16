@@ -23,6 +23,8 @@ See the [approved implementation roadmap](docs/roadmap.md), [verified progress](
 
 ## Research workbench
 
+Version 0.2 adds [source/review audits, baseline comparisons, projects, history and durable CSV jobs](docs/research-workflow.md). Run `cvti doctor` for diagnostics or `cvti start` to launch the API, dashboard and one local worker together.
+
 For a guided first session, follow the [step-by-step tutorial](docs/tutorial.md). Start with structure profiles and comparisons without adding data; load the synthetic demonstration only when you choose to.
 
 The Streamlit interface uses a sidebar workspace, molecular structure cards and interactive charts. Open `http://127.0.0.1:8501/` and choose a page:
@@ -34,7 +36,9 @@ The Streamlit interface uses a sidebar workspace, molecular structure cards and 
 | Compare molecules | Compares two to six structures, calculated properties and Morgan-fingerprint PCA positions; optionally adds scores from the selected experiment and exports a CSV. |
 | Assay review | Filters preserved assay decisions and opens source documents, full descriptions and exclusion reasons. |
 | Models & reports | Runs synthetic demonstrations, displays class balance and scaffold holdouts, and exports experiment reports. |
-| Datasets & evidence | Inspects version checksums, stored selection rules and contextual disease evidence. |
+| Datasets & evidence | Inspects version checksums, selection rules, dataset audit and contextual disease evidence. |
+| Projects & history | Organizes projects/collections/notes, saved predictions and unified report exports. |
+| Batch processing | Processes CSV molecule lists using one durable local worker, with per-row outcomes and explicit saving. |
 
 The **Scoring model** selector controls both profile scores and molecule comparisons. Select **Structures only** for calculations without a model. Comparison scores and profile previews do not create prediction records; **Save prediction** does. Invalid submissions clear the previous result. Model and dataset IDs are carried with every returned score. A direct link to the comparison workspace is `http://127.0.0.1:8501/?view=Compare%20molecules`.
 
@@ -57,13 +61,13 @@ cvti predict 'CC1CCCCC1'
 uvicorn cvti.api:app --reload --host 127.0.0.1 --port 8000
 ```
 
-In a second terminal, activate the same environment and run:
+Alternatively, `cvti start` runs all local components in one foreground terminal. For separate processes, in a second terminal activate the same environment and run:
 
 ```bash
 streamlit run dashboard.py
 ```
 
-Open the dashboard URL printed by Streamlit. The API docs are at `http://127.0.0.1:8000/docs`.
+For CSV jobs started through the dashboard, run `cvti worker` in a third terminal when using separate processes. Open the dashboard URL printed by Streamlit. The API docs are at `http://127.0.0.1:8000/docs`.
 
 ## Quick start: Windows PowerShell
 
@@ -151,7 +155,7 @@ The built-in fixture is not sourced from either provider. Its source is `synthet
 
 Under **Assay review**, choose a stored ChEMBL dataset version to see each assay's source document links, recorded inclusion decision, exclusion reason, activity count, and retained activity count. Filter by decision and choose an assay to read its complete saved description and review note. **Download assay review CSV** exports every assay in the selected version. This view reads preserved inputs; it does not apply today's rules to an older review. An inclusion decision alone does not guarantee that any activities survived the selection rules. New curation runs also record activity exclusion counts per assay; older versions retain their reviewer notes and any metadata exclusions recorded in their review CSV.
 
-Under **Inspect experiment evaluation**, select an experiment and download its **Markdown** or **JSON** report. Each report contains the experiment's own dataset version, source and checksums, stored selection rules, associated assay decisions and source links, evaluation results, and research limitations. Choosing another version in the assay view does not change the experiment export. Synthetic experiments have no ChEMBL assay review; legacy exports explicitly identify missing original provenance. All review controls are read-only; update a review CSV and curate it to record a new version.
+Under **Inspect experiment evaluation**, select an experiment and download its **Markdown** or **JSON** report. Each report contains the experiment's own dataset version, source and checksums, stored selection rules, associated assay decisions and source links, evaluation results, and research limitations. Choosing another version in the assay view does not change the experiment export. Synthetic experiments have no ChEMBL assay review; legacy exports explicitly identify missing original provenance. Historic review views are read-only. The revised-review editor holds a draft until explicit submission creates a new version; CSV curation is also available. New inclusions require reviewer/date/primary source and assay comparability fields. See the version 0.2 research workflow guide.
 
 ## API and model
 
@@ -178,7 +182,7 @@ The prediction response shows whether the exact molecule or its scaffold occurre
 - ChEMBL assays differ in constructs, formats, conditions, and source quality. The new manual review gate narrows the intended endpoint, but it does not establish that included assays are comparable; this MVP does not establish selectivity, cell activity, exposure, toxicity, or in vivo efficacy.
 - Even repeated scaffold splitting can overestimate prospective performance. The holdouts overlap, and requiring both classes filters the possible partitions; their median and range are descriptive, not independent confidence intervals. The dataset may be small, class imbalanced, biased toward published chemistry, and related across scaffold families.
 - Charge-parent standardization can erase relevant salt/protonation information; stereochemistry is retained in canonical SMILES but may be missing from source structures. The current Morgan fingerprints do not encode chirality, so stereoisomers can have identical feature vectors and PCA positions. Acyclic molecules are excluded from this scaffold-split MVP.
-- The Random Forest is a baseline, not a medicinal chemistry decision system. No uncertainty calibration, applicability-domain validation, external benchmark, temporal split, or independent experimental confirmation is included. The current reviewed ChEMBL version approved no measurements, so there is no valid real-data model or later independent dataset to evaluate. A future external or temporal holdout needs another independently reviewed, endpoint-compatible dataset with both classes and enough distinct molecules and scaffolds; overlapping molecules must be excluded before calling it independent.
+- The Random Forest is a baseline, not a medicinal chemistry decision system. No scientific uncertainty calibration, validated applicability domain, external benchmark, temporal performance result, or independent experimental confirmation has been established. The software now supports separate evaluation and source-date checks, but a suitable reviewed external dataset is still unavailable. The current reviewed ChEMBL version approved no measurements, so there is no valid real-data model or later independent dataset to evaluate. A future external or temporal holdout needs another independently reviewed, endpoint-compatible dataset with both classes and enough distinct molecules and scaffolds; overlapping molecules must be excluded before calling it independent.
 - Never mix the synthetic fixture with real ChEMBL records when interpreting results. The database separates sources, and training requires a source choice.
 
 ## Development milestones

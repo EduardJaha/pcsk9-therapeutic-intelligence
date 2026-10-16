@@ -31,6 +31,18 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+  worker:
+    build: .
+    image: cvti-mvp:local
+    command: ["cvti", "worker"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://cvti:${POSTGRES_PASSWORD:-local_dev_only}@db:5432/cvti
+      ARTIFACT_DIR: /app/data/artifacts
+    volumes:
+      - artifacts:/app/data/artifacts
+    depends_on:
+      api:
+        condition: service_healthy
   dashboard:
     build: .
     image: cvti-mvp:local

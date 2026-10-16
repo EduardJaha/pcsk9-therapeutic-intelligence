@@ -74,6 +74,10 @@ def test_review_gate_and_curation_report(tmp_path):
             curate_snapshot(session, snapshot, review)
 
     rows[0]["review_note"] = "Reviewed assay description and primary source; direct protein binding."
+    for row in rows:
+        row.update(reviewer='Offline test reviewer', reviewed_at='2026-01-01', primary_source='https://example.test/protocol',
+                   species='Homo sapiens', protein_constructs='Test constructs', measurement_method='Test binding method',
+                   experimental_conditions='Synthetic test only')
     with review.open("w", newline="") as file:
         writer = csv.DictWriter(file, fieldnames=rows[0])
         writer.writeheader()
@@ -158,7 +162,7 @@ def test_snapshot_fetch_is_bounded_and_no_overwrite(tmp_path):
     with httpx.Client(transport=httpx.MockTransport(handler)) as client:
         result = fetch_snapshot(path, Settings(chembl_max_records=2), client)
         assert result["activities"] == 1 and result["assays"] == 1
-        assert len(calls) == 2
+        assert len(calls) == 4
         with pytest.raises(ValueError, match="already exists"):
             fetch_snapshot(path, Settings(), client)
     assert json.loads(path.read_text())["activities"][0]["activity_id"] == 1

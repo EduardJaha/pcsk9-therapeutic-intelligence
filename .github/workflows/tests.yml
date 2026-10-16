@@ -15,6 +15,8 @@ jobs:
       - run: python -m pip install uv==0.13.1
       - run: uv sync --frozen --extra dev
       - run: uv run --frozen pytest -q
+      - run: uv sync --frozen --extra dev --no-editable
+      - run: uv run --frozen --no-editable python scripts/release_smoke.py
   postgres:
     runs-on: ubuntu-latest
     services:

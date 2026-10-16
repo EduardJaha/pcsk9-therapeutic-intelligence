@@ -79,7 +79,11 @@ def _metric_summary(results: list[dict], name: str) -> dict[str, float]:
 
 
 def train(session, source: str = "synthetic_fixture", artifact_dir: str | None = None,
-          dataset_version_id: int | None = None) -> Experiment:
+          dataset_version_id: int | None = None, *, protocol_id: int | None = None,
+          model_kind: str = "random_forest", project_id: int = 1) -> Experiment:
+    from cvti.models import Project
+    if session.get(Project, project_id) is None:
+        raise ValueError('Project not found')
     if source not in {"synthetic_fixture", "chembl_curated"}:
         raise ValueError("Train only on the synthetic fixture or manually reviewed ChEMBL records")
     if dataset_version_id is not None:
@@ -106,16 +110,19 @@ def train(session, source: str = "synthetic_fixture", artifact_dir: str | None =
                                  records=records, stats={"rows": len(records), "synthetic": True})
     if version.status != "ready":
         raise ValueError(f"Dataset version {version.id} is {version.status}; no model may be trained from it")
-    rows = version_rows(version)
-    examples, conflicts = _examples(rows)
-    if len(examples) < 12 or len({x[1] for x in examples}) < 5:
-        raise ValueError("Need at least 12 distinct molecules across 5 ring scaffolds")
-    y = np.array([int(x[2] >= THRESHOLD) for x in examples])
-    if len(set(y)) != 2:
-        raise ValueError("Need both IC50 label classes")
-    groups = np.array([x[1] for x in examples])
-    X = np.stack([fingerprint(x[0]) for x in examples])
-    splits, split_selection = _evaluation_splits(X, y, groups)
+    from cvti.evaluation import prepare_protocol, classification_metrics
+    protocol, examples, X, y, groups, splits, conflicts = prepare_protocol(session, version, protocol_id=protocol_id)
+    split_selection = protocol.protocol_json['split_selection']
+    def new_model():
+        if model_kind == 'random_forest':
+            return RandomForestClassifier(n_estimators=150, class_weight='balanced', random_state=42, n_jobs=1)
+        if model_kind == 'logistic_regression':
+            from sklearn.linear_model import LogisticRegression
+            return LogisticRegression(C=1.0, class_weight='balanced', solver='liblinear', max_iter=1000, random_state=42)
+        if model_kind == 'dummy':
+            from sklearn.dummy import DummyClassifier
+            return DummyClassifier(strategy='prior', random_state=42)
+        raise ValueError('Unknown baseline model kind')
     split_results = []
     for split_number, (train_idx, test_idx) in enumerate(splits, start=1):
         train_scaffolds = set(groups[train_idx])
@@ -126,16 +133,36 @@ def train(session, source: str = "synthetic_fixture", artifact_dir: str | None =
         molecule_overlap = len(train_smiles & test_smiles)
         if scaffold_overlap or molecule_overlap:
             raise ValueError("Scaffold split leaked training molecules or scaffolds into the test set")
-        evaluation_model = RandomForestClassifier(
-            n_estimators=150, class_weight="balanced", random_state=42, n_jobs=1)
+        evaluation_model = new_model()
         evaluation_model.fit(X[train_idx], y[train_idx])
         probabilities = evaluation_model.predict_proba(X[test_idx])[:, 1]
         predictions = (probabilities >= 0.5).astype(int)
         tn, fp, fn, tp = (int(value) for value in confusion_matrix(
             y[test_idx], predictions, labels=[0, 1]).ravel())
+        train_bits, test_bits = X[train_idx].astype(bool), X[test_idx].astype(bool)
+        nearest_similarities = []
+        for bits in test_bits:
+            intersection = np.logical_and(train_bits, bits).sum(axis=1)
+            union = np.logical_or(train_bits, bits).sum(axis=1)
+            nearest_similarities.append(float(np.max(np.divide(intersection, union, out=np.ones_like(intersection, dtype=float), where=union != 0))))
+        similarity_errors = []
+        for low, high in [(0, 0.25), (0.25, 0.5), (0.5, 0.75), (0.75, 1.01)]:
+            mask = np.array([low <= value < high for value in nearest_similarities])
+            if mask.any():
+                similarity_errors.append({'lower': low, 'upper': min(high, 1.0), 'n': int(mask.sum()),
+                                          'error_fraction': float(np.mean(predictions[mask] != y[test_idx][mask]))})
         split_results.append({
             "split": split_number,
             "train_smiles": sorted(train_smiles), "test_smiles": sorted(test_smiles),
+            "fingerprint_overlap": protocol.protocol_json['splits'][split_number - 1]['fingerprint_overlap'],
+            "source_document_overlap": protocol.protocol_json['splits'][split_number - 1]['source_document_overlap'],
+            **classification_metrics(y[test_idx], probabilities),
+            "error_by_training_similarity": similarity_errors,
+            "test_predictions": [{'canonical_smiles': examples[i][0], 'scaffold': examples[i][1],
+                                  'label': int(y[i]), 'score': float(score), 'nearest_training_similarity': similarity,
+                                  'assay_ids': sorted({r['assay_id'] for r in version.records_json
+                                                       if r['canonical_smiles'] == examples[i][0] and r.get('assay_id')})}
+                                 for i, score, similarity in zip(test_idx, probabilities, nearest_similarities)],
             "train_class_counts": _class_counts(y[train_idx]),
             "test_class_counts": _class_counts(y[test_idx]),
             "n_train_scaffolds": len(train_scaffolds), "n_test_scaffolds": len(test_scaffolds),
@@ -162,19 +189,23 @@ def train(session, source: str = "synthetic_fixture", artifact_dir: str | None =
         },
         "saved_model": "refit_on_all_version_molecules_after_evaluation",
     }
-    model = RandomForestClassifier(n_estimators=150, class_weight="balanced", random_state=42, n_jobs=1)
+    model = new_model()
     model.fit(X, y)
     train_smiles = {example[0] for example in examples}
     train_scaffolds = set(groups)
     dataset_hash = hashlib.sha256(json.dumps(examples, sort_keys=True).encode()).hexdigest()
-    run = Experiment(dataset_version_id=version.id, target_id=TARGET_CHEMBL,
-                     data_source=source, model_kind="Morgan2048_RF150",
+    metrics['evaluation']['protocol_id'] = protocol.id
+    metrics['evaluation']['protocol_sha256'] = protocol.manifest_sha256
+    run = Experiment(project_id=project_id, dataset_version_id=version.id, target_id=TARGET_CHEMBL,
+                     data_source=source, model_kind={"random_forest": "Morgan2048_RF150", "logistic_regression": "Morgan2048_LR", "dummy": "DummyPrior"}[model_kind],
+                     protocol_id=protocol.id,
                      activity_type="IC50", threshold_pchembl=THRESHOLD,
                      n_molecules=len(examples), n_scaffolds=len(set(groups)),
                      metrics=metrics, dataset_hash=dataset_hash, artifact_path="")
     session.add(run)
     session.flush()
-    run.provenance_json = capture_provenance()
+    run.provenance_json = {**capture_provenance(), 'model_parameters': model.get_params(),
+                           'protocol_id': protocol.id, 'protocol_sha256': protocol.manifest_sha256}
     directory = Path(artifact_dir or get_settings().artifact_dir)
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / f"experiment-{run.id}.joblib"
@@ -195,7 +226,10 @@ def train(session, source: str = "synthetic_fixture", artifact_dir: str | None =
     return run
 
 
-def predict(session, smiles: str, experiment_id: int | None = None, *, save: bool = True) -> dict:
+def predict(session, smiles: str, experiment_id: int | None = None, *, save: bool = True, project_id: int = 1) -> dict:
+    from cvti.models import Project
+    if session.get(Project, project_id) is None:
+        raise ValueError('Project not found')
     query = select(Experiment).order_by(Experiment.id.desc())
     if experiment_id is not None:
         query = query.where(Experiment.id == experiment_id)
@@ -219,14 +253,18 @@ def predict(session, smiles: str, experiment_id: int | None = None, *, save: boo
     probability = float(bundle["model"].predict_proba(fingerprint(canonical).reshape(1, -1))[0, 1])
     prediction_id = None
     if save:
-        record = Prediction(experiment_id=run.id, input_smiles=smiles, canonical_smiles=canonical,
+        record = Prediction(project_id=project_id, experiment_id=run.id, input_smiles=smiles, canonical_smiles=canonical,
                             probability=probability)
         session.add(record)
         session.commit()
         prediction_id = record.id
+    from cvti.evaluation import nearest_compounds
     latest_version_id = session.scalar(select(DatasetVersion.id).where(
         DatasetVersion.source == run.data_source).order_by(DatasetVersion.id.desc()))
     return {"prediction_id": prediction_id,
+        "nearest_training_compounds": nearest_compounds(canonical, version, bundle['train_smiles']),
+        "applicability_notice": "Similarity is structural context only; no validated applicability threshold",
+        "calibration_status": "uncalibrated",
         "artifact_integrity": "verified" if run.artifact_sha256 else "legacy_unverified", "experiment_id": run.id, "canonical_smiles": canonical,
             "probability_exploratory_activity": probability, "label": PREDICTION_LABEL,
             "source": run.data_source, "seen_in_training": canonical in bundle["train_smiles"],

@@ -15,7 +15,7 @@ from cvti.reports import render_assay_review_csv, render_experiment_report
 
 API = os.getenv("API_URL", "http://127.0.0.1:8000").rstrip("/")
 API_REFERENCE_URL = os.getenv("API_REFERENCE_URL", f"{API}/docs")
-PAGES = ["Overview", "Molecule profile", "Compare molecules", "Assay review", "Models & reports", "Datasets & evidence"]
+PAGES = ["Overview", "Molecule profile", "Compare molecules", "Assay review", "Models & reports", "Datasets & evidence", "Projects & history", "Batch processing"]
 EXAMPLE_SMILES = "CC(=O)Oc1ccccc1C(=O)O\nCC(=O)Nc1ccc(O)cc1\nCn1c(=O)c2c(ncn2C)n(C)c1=O"
 PROPERTIES = {
     "Molecular weight · g/mol": "molecular_weight", "Calculated logP": "logp",
@@ -71,6 +71,13 @@ def overview(summary, runs, versions):
     hero("Your cardiovascular discovery workspace",
          "Bring molecular structures, assay evidence and model evaluation into one traceable research workflow.",
          ["PCSK9–LDLR endpoint", "RDKit chemistry", "Scaffold evaluation", "Research use only"])
+    with st.expander("First session · guided checklist", expanded=not runs):
+        st.write("1. Open Molecule profile and build a structure profile.")
+        st.write("2. Compare two or more molecules with Structures only selected.")
+        st.write("3. Optionally load the offline demo and train in Models & reports.")
+        st.write("4. Select a Demo model, preview a score, and save only if wanted.")
+        st.write("5. Export the experiment report from Models & reports.")
+        st.caption("Synthetic data is invented. Unreviewed data cannot train. Reviewed data still requires scientific evaluation.")
     version, assays = review_rows(versions)
     latest = runs[0] if runs else None
     retained = version["records"] if version and version["status"] == "ready" else 0
@@ -227,12 +234,12 @@ def profile_page(model_id, runs):
         if profile:
             if st.button("Preview model score", disabled=model_id is None, width="stretch"):
                 prediction = call("POST", "/predict", json={"smiles": profile["canonical_smiles"],
-                                                           "experiment_id": model_id, "save": False})
+                                                           "experiment_id": model_id, "save": False, "project_id": st.session_state.get("active_project", 1)})
                 if prediction:
                     st.session_state["profile_prediction"] = prediction
             if st.button("Save prediction", disabled=model_id is None, width="stretch"):
                 prediction = call("POST", "/predict", json={"smiles": profile["canonical_smiles"],
-                                                           "experiment_id": model_id, "save": True})
+                                                           "experiment_id": model_id, "save": True, "project_id": st.session_state.get("active_project", 1)})
                 if prediction:
                     st.session_state["profile_prediction"] = prediction
                     st.success(f"Prediction {prediction['prediction_id']} saved with experiment {prediction['experiment_id']}.")
@@ -257,6 +264,13 @@ def profile_page(model_id, runs):
                 st.markdown(f'<div class="score">{prediction["probability_exploratory_activity"]:.3f}</div>', unsafe_allow_html=True)
                 st.caption(f"Experiment {prediction['experiment_id']} · dataset {prediction['dataset_version_id']} · {source_name(prediction['source'])}")
                 st.info(prediction["label"])
+                with st.expander('Selected model evidence and limitations'):
+                    card = call('GET', f"/experiments/{prediction['experiment_id']}/model-card")
+                    if card:
+                        st.json(card)
+                with st.expander('Nearest training compounds · structural context'):
+                    st.dataframe(prediction.get('nearest_training_compounds', []), hide_index=True, width='stretch')
+                    st.caption(prediction.get('applicability_notice', 'No validated applicability threshold'))
                 if prediction["experiment_id"] != model_id:
                     st.caption("This score belongs to the displayed experiment. Preview again to apply the newly selected model.")
                 if prediction["dataset_version_superseded"] or prediction["dataset_version_status"] == "legacy_unverified":
@@ -291,6 +305,26 @@ def assay_page(versions):
         with column:
             stat(decision.capitalize(), sum(a["decision"] == decision for a in assays), "Recorded assay decisions", color)
     st.caption(f"Snapshot retrieved: {version['stats'].get('snapshot_retrieved_at') or 'not recorded'}. Inclusion does not guarantee that activities survived every selection rule.")
+    with st.expander("Draft a revised review · explicit submission required"):
+        st.caption("Edits remain in this browser session until Submit revised review is clicked. New approvals need reviewer, date, primary source and comparability details. This does not verify professional credentials.")
+        sheet = call('GET', f"/dataset-versions/{version['id']}/review-sheet")
+        if sheet:
+            from cvti.curation import REVIEW_FIELDS
+            rows = list(csv.DictReader(io.StringIO(sheet['csv_content'])))
+            for row in rows:
+                for field in REVIEW_FIELDS:
+                    row.setdefault(field, '')
+            if rows:
+                import pandas as pd
+                edited = st.data_editor(pd.DataFrame(rows), key=f"draft_review_{version['id']}",
+                                        hide_index=True, width='stretch', num_rows='fixed')
+                draft = edited.to_csv(index=False)
+                st.download_button('Download draft review CSV', draft, file_name='draft-review.csv', mime='text/csv')
+                if st.button('Submit revised review', type='primary'):
+                    result = call('POST', f"/dataset-versions/{version['id']}/reviews", json={'csv_content': draft})
+                    if result:
+                        st.session_state['workspace_notice'] = f"Review saved as dataset {result['dataset_version_id']} · {result['status']}"
+                        st.rerun()
     table, inspector = st.columns([1.8, 1], gap="medium")
     with table, st.container(border=True, key="panel_assay_table"):
         st.subheader("Assay register")
@@ -320,6 +354,9 @@ def assay_page(versions):
         st.markdown(pill(assay["decision"].capitalize(), "green" if assay["decision"] == "include" else "rose"), unsafe_allow_html=True)
         st.write("Assay description")
         st.write(assay["description"] or "Not recorded")
+        st.caption(f"Reviewer: {assay.get('reviewer') or 'Not recorded'} · Date: {assay.get('reviewed_at') or 'Not recorded'}")
+        if assay.get('primary_source'):
+            st.write("Primary source:", assay['primary_source'])
         st.write("Recorded review note")
         st.write(assay["review_note"] or "Not recorded")
         for document in assay["source_documents"]:
@@ -346,10 +383,36 @@ def models_page(runs, versions):
                 st.rerun()
         if train.button("Train baseline on synthetic fixture", type="primary", width="stretch"):
             with st.spinner("Evaluating scaffold splits and saving the model…"):
-                trained = call("POST", "/experiments", json={"source": "synthetic_fixture"})
+                trained = call("POST", "/experiments", json={"source": "synthetic_fixture", "project_id": st.session_state.get("active_project", 1)})
             if trained:
                 st.session_state["workspace_notice"] = f"Experiment {trained['id']} saved and ready to inspect."
                 st.rerun()
+    ready_versions = [v for v in versions if v['status'] == 'ready']
+    if ready_versions:
+        with st.expander('Compare fixed baseline models on one dataset'):
+            dataset = st.selectbox('Baseline dataset', ready_versions,
+                                   format_func=lambda v: f"Dataset {v['id']} · {source_name(v['source'])}")
+            st.caption('Dummy prior, logistic regression and Random Forest use the same frozen development holdouts. Synthetic results demonstrate software only.')
+            if st.button('Run three baseline experiments'):
+                protocol_id = None
+                with st.spinner('Training fixed baselines…'):
+                    for kind in ['dummy', 'logistic_regression', 'random_forest']:
+                        result = call('POST', '/experiments', json={'source': dataset['source'], 'dataset_version_id': dataset['id'],
+                                      'model_kind': kind, 'protocol_id': protocol_id, 'project_id': st.session_state.get('active_project', 1)})
+                        if not result:
+                            break
+                        protocol_id = result['metrics']['evaluation']['protocol_id']
+                    else:
+                        st.session_state['workspace_notice'] = 'Three baseline experiments saved with identical development partitions.'
+                        st.rerun()
+    if len(runs) > 1:
+        st.dataframe([{'Experiment': r['id'], 'Model': r.get('model_kind', 'Legacy'), 'Dataset': r['dataset_version_id'],
+                       'Protocol': r.get('protocol_id'),
+                       'Median balanced accuracy': r['metrics'].get('evaluation', {}).get('summary', {}).get('balanced_accuracy', {}).get('median'),
+                       'Median ROC AUC': r['metrics'].get('evaluation', {}).get('summary', {}).get('roc_auc', {}).get('median'),
+                       'Median average precision': r['metrics'].get('evaluation', {}).get('summary', {}).get('average_precision', {}).get('median')}
+                      for r in runs], hide_index=True, width='stretch')
+        st.caption('Compare scores only when dataset and protocol match. These are development holdouts, not final independent validation.')
     if not runs:
         st.info("Load the fixture and train a demonstration model to begin.")
         return
@@ -395,6 +458,10 @@ def models_page(runs, versions):
             st.caption("The saved prediction model was refit on all version molecules after these evaluation fits.")
     else:
         st.info("This older experiment has a single holdout. Retrain to obtain repeated scaffold evaluation.")
+    card = call('GET', f"/experiments/{run['id']}/model-card")
+    if card:
+        with st.expander('Model card · intended use and limitations'):
+            st.json(card)
     report = call("GET", f"/experiments/{run['id']}/report")
     if report:
         with st.container(border=True, key="panel_models_report"):
@@ -431,6 +498,12 @@ def datasets_page(versions):
                 with st.container(border=True, key="panel_dataset_provenance"):
                     st.subheader("Preserved provenance")
                     st.write("Endpoint:", detail["endpoint_group"] or "Synthetic or legacy dataset")
+                    audit = call('GET', f"/dataset-versions/{version['id']}/audit")
+                    if audit:
+                        with st.expander('Dataset audit and training feasibility'):
+                            st.json(audit)
+                            st.download_button('Download dataset audit (JSON)', json.dumps(audit, indent=2),
+                                               file_name=f"dataset-{version['id']}-audit.json", mime='application/json')
                     for name in ["snapshot", "review", "policy", "records", "manifest"]:
                         st.caption(f"{name.capitalize()} SHA-256")
                         st.code(detail.get(f"{name}_sha256") or "Not recorded", language=None)
@@ -449,6 +522,113 @@ def datasets_page(versions):
         st.caption("Association evidence provides context and is not a feature used by the molecular classifier. Synthetic entries have no biological interpretation.")
 
 
+
+def call_file(path):
+    try:
+        with httpx.Client(timeout=60) as client:
+            response = client.request('GET', f'{API}{path}')
+            response.raise_for_status()
+            return response.content
+    except httpx.HTTPError:
+        st.error('Unable to download this export. Check the selected records and API connection.')
+        return None
+
+
+def projects_page(project_id, runs):
+    hero('Projects, collections & saved history', 'Organize research sessions and retrieve the exact experiments behind saved scores.',
+         ['Local projects', 'Named collections', 'Prediction history', 'Research use only'])
+    with st.expander('Create a project'):
+        with st.form('new_project'):
+            name = st.text_input('Project name')
+            notes = st.text_area('Project notes')
+            if st.form_submit_button('Create project'):
+                if call('POST', '/projects', json={'name': name, 'notes': notes}):
+                    st.rerun()
+    project = next((p for p in call('GET', '/projects') or [] if p['id'] == project_id), None)
+    if project:
+        with st.expander('Edit current project notes'):
+            with st.form('edit_project'):
+                name = st.text_input('Edit project name', project['name'])
+                notes = st.text_area('Edit project notes', project['notes'])
+                if st.form_submit_button('Save project notes'):
+                    if call('PATCH', f'/projects/{project_id}', json={'name': name, 'notes': notes}):
+                        st.rerun()
+    st.subheader('Molecule collections')
+    with st.form('new_collection'):
+        collection_name = st.text_input('Collection name')
+        collection_notes = st.text_input('Collection notes')
+        if st.form_submit_button('Create collection'):
+            if call('POST', '/collections', json={'project_id': project_id, 'name': collection_name, 'notes': collection_notes}):
+                st.rerun()
+    collections = call('GET', f'/collections?project_id={project_id}') or []
+    if collections:
+        collection = st.selectbox('Collection', collections, format_func=lambda c: c['name'])
+        with st.form('add_collection_molecule'):
+            smiles = st.text_input('Collection molecule SMILES')
+            notes = st.text_input('Molecule note')
+            if st.form_submit_button('Add molecule to collection'):
+                if call('POST', f"/collections/{collection['id']}/molecules", json={'smiles': smiles, 'notes': notes}):
+                    st.rerun()
+        entries = call('GET', f"/collections/{collection['id']}/molecules") or []
+        st.dataframe(entries, hide_index=True, width='stretch')
+        from cvti.batches import csv_export
+        st.download_button('Download collection CSV', csv_export(entries), file_name='collection.csv', mime='text/csv')
+    st.subheader('Saved predictions')
+    options = [None] + [run['id'] for run in runs]
+    selected = st.selectbox('Filter history by experiment', options, format_func=lambda v: 'All experiments' if v is None else f'Experiment {v}')
+    offset = int(st.number_input('History offset', min_value=0, step=100, value=0))
+    query = f'/predictions?project_id={project_id}&offset={offset}&limit=100' + (f'&experiment_id={selected}' if selected else '')
+    history = call('GET', query) or {'total': 0, 'items': []}
+    st.caption(f"{history['total']} saved predictions · showing up to 100 from offset {offset}")
+    st.dataframe(history['items'], hide_index=True, width='stretch')
+    from cvti.batches import csv_export
+    st.download_button('Download displayed history CSV', csv_export(history['items']), file_name='predictions.csv', mime='text/csv')
+    if selected:
+        identifiers = st.multiselect('Predictions to include in research report', [row['id'] for row in history['items']])
+        if st.button('Prepare unified research report'):
+            path = f'/research-reports/{selected}?project_id={project_id}' + ''.join(f'&prediction_ids={v}' for v in identifiers)
+            bundle = call_file(path)
+            if bundle:
+                st.download_button('Download research report ZIP', bundle, file_name=f'research-{selected}.zip', mime='application/zip')
+
+
+def batch_page(project_id, model_id, runs):
+    hero('Batch molecular processing', 'Submit a CSV and process structures or explicitly selected model scores with row-level results.',
+         ['Durable jobs', 'Per-row validation', 'Explicit saving', 'One local worker'])
+    chosen_model_note(model_id, runs)
+    uploaded = st.file_uploader('Molecule CSV', type=['csv'], max_upload_size=2)
+    if uploaded is not None:
+        try:
+            text = uploaded.getvalue().decode('utf-8-sig')
+            columns = next(csv.reader(io.StringIO(text)), [])
+        except (UnicodeDecodeError, csv.Error):
+            st.error('Upload a UTF-8 CSV file.')
+            return
+        if columns:
+            column = st.selectbox('SMILES column', columns)
+            save = st.checkbox('Save model predictions to current project', value=False, disabled=model_id is None)
+            st.caption('Initial limit: 1,000 rows unless configured otherwise. Duplicate standardized molecules are reported once per job.')
+            if st.button('Submit CSV job', type='primary'):
+                result = call('POST', '/batch-jobs', json={'csv_content': text, 'smiles_column': column,
+                    'project_id': project_id, 'experiment_id': model_id, 'save_predictions': save})
+                if result:
+                    st.success(f"Job {result['id']} queued. cvti start includes the worker; otherwise run cvti worker in another terminal.")
+    st.button('Refresh batch jobs')
+    jobs = call('GET', f'/batch-jobs?project_id={project_id}') or []
+    if not jobs:
+        st.info('No batch jobs in this project. Submit a CSV to begin.')
+        return
+    st.dataframe(jobs, hide_index=True, width='stretch')
+    job = st.selectbox('Inspect batch job', jobs, format_func=lambda j: f"Job {j['id']} · {j['status']} · {j['processed']}/{j['rows']} rows")
+    detail = call('GET', f"/batch-jobs/{job['id']}")
+    if detail:
+        st.dataframe(detail['results'], hide_index=True, width='stretch')
+        from cvti.batches import csv_export
+        st.download_button('Download batch result CSV', csv_export(detail['results']), file_name=f"batch-{job['id']}.csv", mime='text/csv')
+        if job['status'] in ['failed', 'interrupted'] and st.button('Retry remaining batch rows'):
+            if call('POST', f"/batch-jobs/{job['id']}/retry"):
+                st.rerun()
+
 summary = call("GET", "/summary", quiet=True)
 connected = summary is not None
 runs = (call("GET", "/experiments") or []) if connected else []
@@ -456,6 +636,13 @@ versions = (call("GET", "/dataset-versions") or []) if connected else []
 with st.sidebar:
     st.markdown('<div class="brand"><div class="brand-mark">P9</div><div><div class="brand-name">PCSK9 Lab</div>'
                 '<div class="brand-caption">RESEARCH WORKBENCH</div></div></div>', unsafe_allow_html=True)
+    projects = call('GET', '/projects') or [{'id': 1, 'name': 'Local project'}]
+    project_ids = [p['id'] for p in projects]
+    if st.session_state.get('active_project', 1) not in project_ids:
+        st.session_state['active_project'] = project_ids[0]
+    project_id = st.selectbox('Research project', project_ids, key='active_project',
+                              format_func=lambda value: next(p['name'] for p in projects if p['id'] == value))
+    runs = [run for run in runs if run.get('project_id', 1) == project_id]
     st.markdown('<div class="nav-caption">WORKSPACE</div>', unsafe_allow_html=True)
     initial_page = st.query_params.get("view", "Overview")
     st.session_state.setdefault("workspace_nav", initial_page if initial_page in PAGES else "Overview")
@@ -498,7 +685,11 @@ elif page == "Assay review":
     assay_page(versions)
 elif page == "Models & reports":
     models_page(runs, versions)
-else:
+elif page == 'Datasets & evidence':
     datasets_page(versions)
+elif page == 'Projects & history':
+    projects_page(project_id, runs)
+else:
+    batch_page(project_id, model_id, runs)
 st.markdown('<div class="app-footer"><span>PCSK9 Lab · Research hypotheses only. Not validated drugs or clinical guidance.</span>'
             '<span>Python · RDKit · scikit-learn</span></div>', unsafe_allow_html=True)

@@ -9,7 +9,7 @@ cvti doctor
 cvti start
 ```
 
-`cvti start` owns both foreground servers. Ctrl+C stops both. Existing occupied ports are reported rather than replaced. Use `cvti start --api-port 18000 --dashboard-port 18501` for alternatives. The dashboard API connection is set automatically. Shell helpers: `./scripts/start.sh` (macOS/Linux) or `./scripts/start.ps1` (PowerShell). Both assume the documented `.venv` already exists.
+`cvti start` owns the API, dashboard and one CSV worker. Ctrl+C stops all three. Existing occupied ports are reported rather than replaced. Use `cvti start --api-port 18000 --dashboard-port 18501` for alternatives. The dashboard API connection is set automatically. Shell helpers: `./scripts/start.sh` (macOS/Linux) or `./scripts/start.ps1` (PowerShell). Both assume the documented `.venv` already exists.
 
 `cvti doctor` does not upgrade the schema, load fixtures or save predictions. It reports schema revision, missing/corrupt artifacts and server status. Old models whose hashes were never recorded are labelled legacy-unverified; do not invent missing training history. Run `cvti db upgrade` with servers stopped if an upgrade is needed.
 
@@ -56,3 +56,12 @@ TEST_DATABASE_URL=postgresql+psycopg://USER@127.0.0.1:5432/cvti_test python -m p
 ```
 
 PostgreSQL tests use temporary schemas and separate temporary recovery databases, and need permission to create/drop those test objects. Never use a production database URL for tests. No biomedical HTTP service is required.
+
+
+## CSV worker
+
+`cvti start` and Docker Compose now include one persistent local worker. If you start API/Streamlit manually in two terminals, start a third with `cvti worker`. `cvti worker --once` processes at most one queued job and exits. Jobs live in the database, not browser memory. Completed rows and any saved predictions commit together. Restarting the worker marks previously running jobs interrupted; use **Retry remaining batch rows** explicitly. Stop the worker too before backup or schema maintenance. A separate process lock prevents two local workers sharing the same configured workspace.
+
+## API maintenance locks
+
+The current API and CLI writers hold shared workspace locks. Schema upgrades and backups require an exclusive lock. This permits API requests and a CSV worker to coexist while preventing a backup or migration from claiming exclusivity over active cooperative writers. External database clients are outside this mechanism. Current schemas are checked without migration; new schemas upgrade under an exclusive lock before services start.

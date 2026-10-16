@@ -21,10 +21,17 @@ class SourceUnavailable(RuntimeError):
     pass
 
 
-def request_json(client: httpx.Client, method: str, url: str, settings: Settings, **kwargs) -> dict:
+def request_json(client: httpx.Client, method: str, url: str, settings: Settings, *, response_log=None, **kwargs) -> dict:
     for attempt in range(settings.http_max_retries + 1):
         try:
             response = client.request(method, url, timeout=settings.http_timeout_seconds, **kwargs)
+            if response_log is not None:
+                import base64
+                import hashlib
+                response_log.append({'method': method, 'url': str(response.request.url),
+                                     'status_code': response.status_code,
+                                     'body_base64': base64.b64encode(response.content).decode('ascii'),
+                                     'sha256': hashlib.sha256(response.content).hexdigest()})
             if response.status_code in RETRY_STATUS:
                 if attempt == settings.http_max_retries:
                     raise SourceUnavailable(f"{url}: HTTP {response.status_code} after retries")
@@ -142,6 +149,38 @@ def ingest_live(session, settings: Settings | None = None, client: httpx.Client 
         session.commit()
         return {"source": "live", "scanned_measurements": scanned,
                 "inserted_measurements": inserted, "evidence_rows": len(evidence)}
+    finally:
+        if own_client:
+            client.close()
+
+
+def fetch_evidence_snapshot(path: Path, settings=None, client=None):
+    """Preserve a bounded Open Targets context response, never as molecular labels."""
+    import hashlib
+    from datetime import datetime, timezone
+    settings = settings or get_settings()
+    if path.exists():
+        raise ValueError('Evidence snapshot output already exists')
+    own_client = client is None
+    client = client or httpx.Client()
+    responses = []
+    started = datetime.now(timezone.utc).isoformat()
+    query = 'query PCSK9($id:String!){target(ensemblId:$id){id approvedSymbol associatedDiseases(page:{index:0,size:20}){rows{score disease{id name}}}}}'
+    try:
+        payload = request_json(client, 'POST', settings.open_targets_graphql_url, settings, response_log=responses,
+                               json={'query': query, 'variables': {'id': TARGET_ENSEMBL}})
+        if payload.get('errors') or payload.get('data', {}).get('target', {}).get('id') != TARGET_ENSEMBL:
+            raise SourceUnavailable('Open Targets evidence response is incomplete or target does not match')
+        snapshot = {'schema_version': 1, 'source': 'Open Targets', 'purpose': 'context_only_not_training_labels',
+                    'query': query, 'variables': {'id': TARGET_ENSEMBL}, 'source_release': None,
+                    'retrieval_started_at': started, 'retrieval_completed_at': datetime.now(timezone.utc).isoformat(),
+                    'completeness': 'bounded_sample', 'page': {'index': 0, 'size': 20}, 'responses': responses,
+                    'data': payload['data']}
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open('x', encoding='utf-8') as handle:
+            json.dump(snapshot, handle, indent=2, sort_keys=True)
+        return {'snapshot': str(path), 'sha256': hashlib.sha256(path.read_bytes()).hexdigest(),
+                'completeness': 'bounded_sample', 'purpose': snapshot['purpose']}
     finally:
         if own_client:
             client.close()

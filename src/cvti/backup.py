@@ -52,7 +52,7 @@ def inspect_backup(archive):
         total = 0
         for info in bundle.infolist():
             path = PurePosixPath(info.filename)
-            if path.is_absolute() or '..' in path.parts or '\\' in info.filename or info.is_dir():
+            if path.is_absolute() or '..' in path.parts or '\\' in info.filename or ':' in info.filename or info.is_dir():
                 raise ValueError('Invalid backup member path')
             total += info.file_size
         if total > MAX_ARCHIVE_BYTES or bundle.getinfo('manifest.json').file_size > 10_000_000:
@@ -93,7 +93,8 @@ def create_backup(database_url, artifact_dir, output, *, services_stopped=False)
                 revision = session.execute(text('SELECT version_num FROM alembic_version')).scalar_one()
                 artifacts = {}
                 for run in runs:
-                    source = Path(run.artifact_path)
+                    from cvti.training_provenance import verify_artifact
+                    source = verify_artifact(run)
                     if not source.is_file():
                         raise ValueError(f'Model artifact missing for experiment {run.id}; repair before backing up')
                     name = f'artifacts/experiment-{run.id}.joblib'

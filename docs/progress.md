@@ -1,25 +1,43 @@
-# Roadmap progress
+# Roadmap progress — local release 0.2
 
-See [the approved roadmap](roadmap.md) for task definitions. Last updated: 2026-10-16.
+Updated 2026-10-16. Task definitions: [approved roadmap](roadmap.md). User decisions: **no qualified reviewer yet; keep this release local with no hosting cost**. These decisions gate real-data approval and hosted/commercial work. Software acceptance and scientific evidence are reported separately.
 
-| Tasks | State | Evidence / remaining requirement |
+| Task | State | Delivered / exact remaining requirement |
 |---|---|---|
-| R1 | In progress | SQLite + PostgreSQL workflow and migration gates added; remote Actions verification pending. |
-| R2 | In progress | Checksummed archives, relocation, SQLite/PostgreSQL recovery; verification in progress. |
-| R3 | In progress | Additive provenance/checksum migration, exact split assignments and atomic model writes; checks in progress. |
-| R4 | In progress | Read-only diagnostics, single-command launcher and OS helpers; verification in progress. |
-| R5 | Waiting on dependency | Requires R1–R4 and fresh release verification. |
-| D1 | In progress | Prior 23-assay screen approved zero; fresh evidence register and qualified review remain. |
-| D2–D4 | Not started | Source provenance, review attribution and dataset audit next. |
-| D5 | Waiting on dependency | No approved comparable real-data set. |
-| M1 | Not started | Frozen evaluation protocol. |
-| M2–M3, M5 | Waiting on dependency | Approved real training/evaluation data unavailable. |
-| M4, M6 | Not started | May implement honest synthetic/experimental context while data waits. |
-| U1–U4 | Not started | Solo workflow improvements. |
-| X1–X3 | Waiting on dependency | Feasibility assessment and explicit next target selection. |
-| P1–P2 | Waiting on dependency | Project history/ownership before hosted access. |
-| P3 | Waiting on dependency | Auth, provider, identity provider, region and monthly budget not selected. |
-| P4 | Waiting on dependency | Hosted pilot and explicit user-authorized recruitment. |
-| C1–C3 | Waiting on dependency | Pilot evidence, licensing/terms, pricing/payment arrangements and release gates. |
+| R1 | Verified complete | GitHub SQLite/offline and PostgreSQL migration/vertical-slice/restore jobs pass ([verified run](https://github.com/EduardJaha/pcsk9-therapeutic-intelligence/actions/runs/38888476521)). Expanded release checks also run on subsequent pushes. |
+| R2 | Verified complete | Create/inspect/verify/restore, original checksums/schema/version, stopped-writer guards, SQLite/PostgreSQL relocation, preserved records and tamper/path tests. Current workspace backed up locally; no research data pushed. |
+| R3 | Verified complete | Additive legacy-preserving migration; code/environment/library/parameters/features/seed provenance, exact assignments, atomic writes and pre-load checksum verification. Existing old experiment retains explicitly unknown metadata. |
+| R4 | Verified complete | Read-only doctor; occupied-port messages; foreground API/dashboard/worker launcher, Ctrl+C cleanup, Windows/macOS/Linux helpers. Launcher/recovery smoke test passes locally. Windows helper is supplied; Windows was not executed on this Mac. |
+| R5 | In progress | Complete local/native PostgreSQL and fresh-workspace CLI/service/recovery exercise passed. Final non-editable fresh-checkout verification and release tag in progress. Docker engine unavailable on this Mac; PostgreSQL container exercised in GitHub. |
+| D1 | In progress | [Feasibility assessment](pcsk9-feasibility.md) and [23-assay evidence register](../reviews/pcsk9-evidence-register.csv) delivered. Recommendation: pause real training. Original protocols, potential usable coverage, reuse terms and qualified sign-off remain unresolved. |
+| D2 | Verified complete | Schema-2 snapshots preserve exact response bytes/hashes, timing, observed release/caps/completion; capped/interrupted pulls retained and blocked from curation. Named target JSON bulk-extract importer preserves original bytes and supplied release attribution; separate bounded Open Targets context snapshots. New cases tested with mocked HTTP. |
+| D3 | Verified complete | New approvals require reviewer/date/primary-source/constructs/method/conditions. Browser drafts do not curate until explicit submission. Historical manifests preserved; software tests verify revisions. This is recorded attribution, not expert credential verification or real assay approval. |
+| D4 | Verified complete | CLI/API/dashboard export audit: raw/retained/aggregated class/scaffold counts, exclusions/conflicts/stereo/fingerprint/source overlaps and split feasibility. Software feasibility only; no real-data approval inferred. |
+| D5 | Waiting on dependency | Zero approved comparable real measurements. Need original sources and qualified assay review before freezing a scientific dataset. |
+| M1 | In progress | Frozen checksummed development protocols, exact partitions, feature compatibility, molecule/scaffold/fingerprint checks and source-overlap disclosures implemented/tested. Final independent set cannot yet be reserved; no tuning enabled. |
+| M2 | Waiting on dependency | Dummy/LR/RF comparison software and dashboard implemented; shared protocol verified on synthetic fixtures. Real baseline acceptance requires D5. |
+| M3 | Waiting on dependency | Existing-model evaluation CLI implemented/tested, no refit, overlap removal/source checks/date validation/prior evaluation history. No suitable real independent/later dataset exists; reports state this explicitly. |
+| M4 | In progress | Nearest compounds with activity/assay/document references and development error-vs-similarity summaries implemented. Scientific applicability/error study waits for approved real data. No applicability cutoff claimed. |
+| M5 | Waiting on dependency | Raw Brier/log-loss/reliability diagnostics implemented. Sigmoid calibration not fitted: no sufficient approved training-only calibration dataset. Scores remain uncalibrated. |
+| M6 | In progress | Synthetic/experimental model cards with provenance/evaluation/limitations visible in models and prediction screens. No research-evaluated release assigned without scientific evidence. |
+| U1 | Verified complete | In-app first-session guide, empty-state guidance, explicit sources; demo remains optional. Empty and populated navigation tested. |
+| U2 | Verified complete | Local projects, notes, named collections, structure deduplication, paginated/filterable prediction history, CSV export; old records assigned to Local project. This is not multi-user sharing. |
+| U3 | Verified complete | CSV column choice, configurable 1,000-row starting limit, explicit score/save, durable one-worker jobs, per-row outcomes, transactional checkpoints and explicit retry. Resume test proves no duplicate saved predictions. |
+| U4 | In progress | Selected experiment/prediction ZIP includes Markdown/JSON report, audit, model card, reviews, project notes, CSV and manifest hashes. Software verified; final real-model evidence depends on M6. |
+| X1 | Waiting on dependency | No additional target selected. Complete PCSK9 feasibility/source review, then user selects from a sourced target comparison. No target switch performed. |
+| X2–X3 | Waiting on dependency | Await explicit target/endpoint selection and reviewed data; PCSK9 rules remain intact. |
+| P1–P2 | Not started | Release intentionally stays solo/local. Shared workspaces, memberships, OIDC, role enforcement and tenant isolation remain future work; no authorization claim made for local project grouping. |
+| P3–P4 | Waiting on dependency | Hosting intentionally deferred; providers, identity setup, region, budget, deployed auth and user-authorized pilot recruitment unavailable. |
+| C1–C3 | Waiting on dependency | Need private pilot evidence, commercial-use review, terms/pricing/payment decisions and release gates. No billing or commercial hosting activated. |
 
-No scientific, hosted or commercial task is complete merely because scaffolding exists. No new paid services, outreach, laboratory verification or billing has been activated.
+## Verification evidence
+
+- Full local test run including native PostgreSQL: **34 passed** (schema/migrations/backup/provenance/HTTP mocks/review history/protocols/baselines/projects/jobs/dashboard).
+- `python scripts/release_smoke.py`: real CLI + API + Streamlit + worker + checkpointed mixed CSV + relocated restore **passed**; restored model checksum and output matched.
+- GitHub Actions: both SQLite and PostgreSQL green after fixing service health-check quoting. The workflow also verifies a non-editable installed package with the release smoke script.
+- Current user workspace: original 24 synthetic measurements, two evidence rows, one dataset version, one experiment and one prediction preserved; default local project added by migration. No new demo data loaded into this workspace during implementation.
+- Remaining warning: upstream Starlette TestClient/httpx deprecation; it does not fail the suite.
+
+## Next meaningful work
+
+Use the new local workflow and obtain original assay protocols plus a qualified reviewer. Continue D1/D5 only with attributable evidence. Calibration/independent scientific validation cannot be claimed from synthetic fixtures. When ready to expand, request X1. Hosting remains off until explicitly reactivated with provider/identity/region/budget choices.

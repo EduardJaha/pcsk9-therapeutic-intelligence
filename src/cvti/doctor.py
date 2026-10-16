@@ -9,7 +9,7 @@ from sqlalchemy import inspect, select, text
 from sqlalchemy.engine import make_url
 
 from cvti.config import get_settings
-from cvti.db import make_engine, session_factory
+from cvti.db import make_engine, session_factory, migration_config
 from cvti.models import Experiment
 from cvti.training_provenance import verify_artifact
 
@@ -44,7 +44,7 @@ def diagnose(settings=None, *, api_port=8000, dashboard_port=8501):
         tables = inspect(engine).get_table_names()
         if 'alembic_version' not in tables:
             raise ValueError('Database schema is not versioned. Run cvti db upgrade after backing up')
-        config = Config(str(Path(__file__).parents[2] / 'alembic.ini'))
+        config = migration_config()
         head = ScriptDirectory.from_config(config).get_current_head()
         with engine.connect() as conn:
             revision = conn.execute(text('SELECT version_num FROM alembic_version')).scalar_one()

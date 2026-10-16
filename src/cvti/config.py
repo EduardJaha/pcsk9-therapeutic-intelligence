@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     http_max_retries: int = Field(default=3, ge=0, le=10)
     http_backoff_seconds: float = Field(default=1, ge=0)
     chembl_max_records: int = Field(default=500, ge=1, le=5000)
+    batch_max_rows: int = Field(default=1000, ge=1, le=10000)
 
     @field_validator("database_url")
     @classmethod

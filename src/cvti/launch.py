@@ -13,14 +13,24 @@ def start(api_port=8000, dashboard_port=8501):
         check = server_check('127.0.0.1', port, path)
         if check['status'] != 'stopped':
             raise ValueError(check['message'] + '; stop existing services before cvti start')
+    from cvti.config import get_settings
+    from cvti.db import make_engine, prepare_database
+    settings = get_settings()
+    engine = make_engine(settings.database_url)
+    try:
+        prepare_database(engine, settings.database_url, settings.artifact_dir)
+    finally:
+        engine.dispose()
     children = []
     env = dict(os.environ, API_URL=f'http://127.0.0.1:{api_port}', API_REFERENCE_URL=f'http://127.0.0.1:{api_port}/docs')
-    commands = [[sys.executable, '-m', 'uvicorn', 'cvti.api:app', '--host', '127.0.0.1', '--port', str(api_port)],
+    commands = [[sys.executable, '-m', 'cvti.cli', 'worker'],
+                [sys.executable, '-m', 'uvicorn', 'cvti.api:app', '--host', '127.0.0.1', '--port', str(api_port)],
                 [sys.executable, '-m', 'streamlit', 'run', 'dashboard.py', '--server.address', '127.0.0.1',
                  '--server.port', str(dashboard_port), '--server.headless', 'true']]
     def stop(signum, frame):
         raise KeyboardInterrupt
     previous = signal.signal(signal.SIGTERM, stop)
+    previous_break = signal.signal(signal.SIGBREAK, stop) if hasattr(signal, "SIGBREAK") else None
     try:
         for command in commands:
             children.append(subprocess.Popen(command, env=env))
@@ -42,3 +52,5 @@ def start(api_port=8000, dashboard_port=8501):
                 child.kill()
                 child.wait()
         signal.signal(signal.SIGTERM, previous)
+        if previous_break is not None:
+            signal.signal(signal.SIGBREAK, previous_break)

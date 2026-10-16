@@ -66,6 +66,11 @@ def assay_reviews(version: DatasetVersion) -> list[dict]:
             "description": assay.get("description", ""),
             "activity_count": count, "selected_activity_count": selected[assay_id],
             "decision": decision, "endpoint_group": decision_row.get("endpoint_group", ""),
+            "reviewer": decision_row.get('reviewer', ''), 'reviewed_at': decision_row.get('reviewed_at', ''),
+            'primary_source': decision_row.get('primary_source', ''),
+            'species': decision_row.get('species', ''), 'protein_constructs': decision_row.get('protein_constructs', ''),
+            'measurement_method': decision_row.get('measurement_method', ''),
+            'experimental_conditions': decision_row.get('experimental_conditions', ''),
             "review_note": note, "exclusion_reason": reason,
             "recorded_machine_issue": decision_row.get("machine_issue", ""),
             "activity_exclusions": rule_reasons,
@@ -77,7 +82,9 @@ def render_assay_review_csv(rows: list[dict]) -> str:
     output = io.StringIO(newline="")
     fields = ["assay_id", "assay_url", "source", "source_documents", "decision", "endpoint_group",
               "activity_count", "selected_activity_count", "exclusion_reason", "review_note",
-              "description", "recorded_machine_issue", "activity_exclusions"]
+              "description", "recorded_machine_issue", "activity_exclusions",
+              "reviewer", "reviewed_at", "primary_source", "species", "protein_constructs",
+              "measurement_method", "experimental_conditions"]
     writer = csv.DictWriter(output, fieldnames=fields)
     writer.writeheader()
     for row in rows:
@@ -96,12 +103,14 @@ def render_assay_review_csv(rows: list[dict]) -> str:
     return output.getvalue()
 
 
-def experiment_report(run: Experiment, version: DatasetVersion) -> dict:
+def experiment_report(run: Experiment, version: DatasetVersion, external_evaluations=None) -> dict:
     verify_version(version)
     if (run.dataset_version_id != version.id or run.data_source != version.source
             or run.target_id != version.target_id):
         raise ValueError("Experiment and dataset version do not match")
+    external_evaluations = external_evaluations or []
     return {
+        "external_evaluations": external_evaluations,
         "report_schema_version": 2, "generated_at": datetime.now(timezone.utc).isoformat(),
         "research_notice": RESEARCH_NOTICE,
         "experiment": {"id": run.id, "created_at": run.created_at.isoformat(),
@@ -110,7 +119,7 @@ def experiment_report(run: Experiment, version: DatasetVersion) -> dict:
                        "threshold_pchembl": run.threshold_pchembl,
                        "n_molecules": run.n_molecules, "n_scaffolds": run.n_scaffolds,
                        "dataset_hash": run.dataset_hash, "metrics": run.metrics,
-                       "artifact_sha256": run.artifact_sha256,
+                       "artifact_sha256": run.artifact_sha256, "protocol_id": run.protocol_id,
                        "training_provenance": run.provenance_json,
                        "provenance_status": "recorded" if run.provenance_json else "legacy_unknown"},
         "dataset_version": {**version_summary(version), "selection_rules": version.policy_json},
@@ -119,7 +128,7 @@ def experiment_report(run: Experiment, version: DatasetVersion) -> dict:
             "Synthetic fixture scores demonstrate software behavior only." if run.data_source == "synthetic_fixture"
             else "Assay review does not establish cross-assay comparability or therapeutic efficacy.",
             "Repeated scaffold holdouts overlap; their range is not an independent confidence interval.",
-            "No independent or later dataset evaluation is recorded in this experiment.",
+            ("Independent/later evaluations are listed separately; inspect their independence and prior-use flags." if external_evaluations else "No independent or later dataset evaluation is recorded in this experiment."),
             *(["Legacy experiment: original snapshot, decisions and selected rows were not preserved."]
               if version.status == "legacy_unverified" else []),
         ],
@@ -163,7 +172,8 @@ def render_experiment_report(report: dict) -> str:
     else:
         lines.append("Older single-holdout evaluation; repeated split results are unavailable.")
     lines += ["", "Full recorded metrics:", "", "```json", json.dumps(metrics, indent=2), "```",
-              "", "## Assay review", ""]
+              "", "## Independent/later evaluation records", "", "```json",
+              json.dumps(report.get("external_evaluations", []), indent=2), "```", "", "## Assay review", ""]
     if report["assay_reviews"]:
         lines += ["| Assay | Source documents | Decision | Selected activities | Exclusion reason / review note |",
                   "|---|---|---|---|---|"]

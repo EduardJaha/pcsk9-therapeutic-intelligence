@@ -89,3 +89,25 @@ def test_postgres_backup_restore(tmp_path):
             for name in names:
                 connection.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
         admin.dispose()
+
+
+def test_backup_rejects_changed_artifacts_and_unsafe_member_paths(tmp_path):
+    url = f'sqlite:///{tmp_path / "corrupt.db"}'
+    _prepare(url, tmp_path)
+    from cvti.db import make_engine, session_factory
+    from cvti.models import Experiment
+    from sqlalchemy import select
+    engine = make_engine(url)
+    with session_factory(engine)() as session:
+        run = session.scalar(select(Experiment))
+        Path(run.artifact_path).write_bytes(b'tampered')
+    with pytest.raises(ValueError, match='checksum failed'):
+        create_backup(url, tmp_path / 'models', tmp_path / 'bad.zip', services_stopped=True)
+    engine.dispose()
+    for member in ['../escaped.txt', 'C:/escaped.txt', '/escaped.txt', '..\\escaped.txt']:
+        archive = tmp_path / (str(abs(hash(member))) + '.zip')
+        with zipfile.ZipFile(archive, 'w') as bundle:
+            bundle.writestr('manifest.json', '{}')
+            bundle.writestr(member, 'bad')
+        with pytest.raises(ValueError, match='member path'):
+            inspect_backup(archive)

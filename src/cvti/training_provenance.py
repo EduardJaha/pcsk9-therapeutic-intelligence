@@ -13,6 +13,8 @@ def file_sha256(path):
 
 def capture_provenance():
     root = Path(__file__).resolve().parents[2]
+    if not (root / 'pyproject.toml').is_file():
+        root = Path.cwd()
     def git(*args):
         try:
             result = subprocess.run(['git', '-C', str(root), *args], capture_output=True, text=True, timeout=5)
@@ -23,7 +25,8 @@ def capture_provenance():
     status = git('status', '--porcelain')
     distributions = {d.metadata['Name']: d.version for d in importlib.metadata.distributions() if d.metadata['Name']}
     lock = root / 'uv.lock'
-    return {'schema_version': 1, 'git_revision': revision, 'git_dirty': bool(status) if status is not None else None,
+    from cvti.provenance import code_hashes
+    return {'implementation_sha256': code_hashes('ml.py', 'evaluation.py', 'chemistry.py'), 'schema_version': 1, 'git_revision': revision, 'git_dirty': bool(status) if status is not None else None,
             'python_version': platform.python_version(), 'platform': platform.system(),
             'dependencies': dict(sorted(distributions.items())),
             'lockfile_sha256': file_sha256(lock) if lock.is_file() else None,
