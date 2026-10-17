@@ -1,4 +1,5 @@
 from functools import lru_cache
+from urllib.parse import urlsplit
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -18,6 +19,23 @@ class Settings(BaseSettings):
     http_backoff_seconds: float = Field(default=1, ge=0)
     chembl_max_records: int = Field(default=500, ge=1, le=5000)
     batch_max_rows: int = Field(default=1000, ge=1, le=10000)
+    assistant_base_url: str = "http://127.0.0.1:11434"
+    assistant_model: str = ""
+    assistant_timeout_seconds: float = Field(default=45, gt=0, le=50)
+
+    @field_validator("assistant_base_url")
+    @classmethod
+    def validate_assistant_url(cls, value: str) -> str:
+        parts = urlsplit(value)
+        if (parts.scheme != 'http' or parts.hostname not in {'localhost', '127.0.0.1', '::1'}
+                or parts.username or parts.password or parts.path not in {'', '/'}
+                or parts.query or parts.fragment):
+            raise ValueError('ASSISTANT_BASE_URL must be a local loopback HTTP address')
+        try:
+            parts.port
+        except ValueError as exc:
+            raise ValueError('Invalid assistant port') from exc
+        return value.rstrip('/')
 
     @field_validator("database_url")
     @classmethod

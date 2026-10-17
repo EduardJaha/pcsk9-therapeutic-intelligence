@@ -1,6 +1,40 @@
 # Roadmap progress — local release 0.2
 
-Updated 2026-10-16. Task definitions: [approved roadmap](roadmap.md). User decisions: **no qualified reviewer yet; keep this release local with no hosting cost**. These decisions gate real-data approval and hosted/commercial work. Software acceptance and scientific evidence are reported separately.
+Updated 2026-10-17. Task definitions: [approved roadmap](roadmap.md). User decisions: **no qualified reviewer yet; keep this release local with no hosting cost**. These decisions gate real-data approval and hosted/commercial work. Software acceptance and scientific evidence are reported separately.
+
+## Pretrained assistant addition — 17 October 2026
+
+The user authorized starting with existing trained models, requested a dedicated
+branch and repository `AGENTS.md`, and authorized pushing the changes. Work is on
+`codex/pretrained-research-assistant`. The first delivered integration is a local
+language-model evidence assistant; a pretrained molecular predictor is a separate
+future milestone subject to endpoint/data evaluation.
+
+- Added explicit evidence selection, deterministic excerpt retrieval, local Ollama
+  status/inference, structured claims and source/passage references resolved to
+  original quotes. Source hashes, model digest and generation settings accompany
+  the downloadable draft. Citation checks do not establish scientific entailment.
+- Added **Research assistant** to Streamlit, source previews, model setup guidance,
+  quoted claims, evidence gaps and JSON download. Failed submissions clear old
+  results. The assistant has no tools and writes no research records.
+- Installed an isolated official Ollama runtime locally (v0.40.5; release archive
+  SHA-256 verified) and downloaded `qwen3:1.7b` into ignored `data/ollama/`.
+  Model digest: `8f68893c685c3ddff2aa3fffce2aa60a30bb2da65ca488b61fff134a4d1730e7`.
+  This is a small general language model, not a scientifically evaluated model.
+- A real local-model request through FastAPI returned a cited draft about the
+  project feasibility assessment in approximately five seconds. Original Unicode
+  passages were retained. Testing used a temporary database and no imported
+  measurements. This verifies integration only, not biomedical research quality.
+- The existing CLI/API/dashboard/worker/relocated-restore exercise passed. Offline
+  suite: **57 passed, 3 skipped** (PostgreSQL test database not configured).
+  Tests cover source isolation, quotes, model availability/replacement, invalid
+  output, project selection, disabled/cloud configuration and dashboard behavior.
+- The user cleared the research workspace on 17 October. Earlier populated-workspace
+  verification below is historical; no demo records were restored by this work.
+
+Setup, boundaries and API details: [pretrained assistant guide](pretrained-assistant.md).
+Real-data assay approval, independent molecular evaluation and hosting remain
+unchanged dependencies.
 
 | Task | State | Delivered / exact remaining requirement |
 |---|---|---|

@@ -1,12 +1,20 @@
 from pathlib import Path
 
 import httpx
+import pytest
 from fastapi.testclient import TestClient
 from streamlit.testing.v1 import AppTest
 
 from cvti.api import create_app
 from cvti.db import make_engine, session_factory
 from cvti.provenance import create_version
+
+
+@pytest.fixture(autouse=True)
+def disable_local_assistant(monkeypatch):
+    from cvti import assistant
+    from cvti.config import Settings
+    monkeypatch.setattr(assistant, 'get_settings', lambda: Settings(_env_file=None, assistant_model=''))
 
 
 def test_workbench_navigation_and_read_only_previews(tmp_path, monkeypatch):
@@ -39,7 +47,7 @@ def test_workbench_navigation_and_read_only_previews(tmp_path, monkeypatch):
         monkeypatch.delenv("API_URL", raising=False)
         app = AppTest.from_file(str(Path(__file__).parents[1] / "dashboard.py")).run(timeout=20)
         assert not app.exception and not app.error
-        for page in ["Compare molecules", "Molecule profile", "Assay review", "Models & reports", "Datasets & evidence", "Projects & history", "Batch processing"]:
+        for page in ["Research assistant", "Compare molecules", "Molecule profile", "Assay review", "Models & reports", "Datasets & evidence", "Projects & history", "Batch processing"]:
             app.radio[0].set_value(page).run(timeout=20)
             assert not app.exception and not app.error, page
             if page == "Compare molecules":
@@ -83,7 +91,7 @@ def test_empty_workspace_and_completed_batch_views(tmp_path, monkeypatch):
         monkeypatch.delenv('API_URL', raising=False)
         app = AppTest.from_file(str(Path(__file__).parents[1] / 'dashboard.py')).run(timeout=20)
         assert not app.exception and not app.error
-        for page in ['Molecule profile', 'Compare molecules', 'Assay review', 'Models & reports',
+        for page in ['Research assistant', 'Molecule profile', 'Compare molecules', 'Assay review', 'Models & reports',
                      'Datasets & evidence', 'Projects & history', 'Batch processing']:
             app.radio[0].set_value(page).run(timeout=20)
             assert not app.exception and not app.error, page
