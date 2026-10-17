@@ -16,7 +16,6 @@ from cvti.reports import render_assay_review_csv, render_experiment_report
 API = os.getenv("API_URL", "http://127.0.0.1:8000").rstrip("/")
 API_REFERENCE_URL = os.getenv("API_REFERENCE_URL", f"{API}/docs")
 PAGES = ["Overview", "Molecule profile", "Compare molecules", "Assay review", "Models & reports", "Datasets & evidence", "Projects & history", "Batch processing"]
-EXAMPLE_SMILES = "CC(=O)Oc1ccccc1C(=O)O\nCC(=O)Nc1ccc(O)cc1\nCn1c(=O)c2c(ncn2C)n(C)c1=O"
 PROPERTIES = {
     "Molecular weight · g/mol": "molecular_weight", "Calculated logP": "logp",
     "Polar surface area · Å²": "tpsa", "H-bond donors": "h_bond_donors",
@@ -138,20 +137,15 @@ def comparison(model_id, runs):
     with editor, st.container(border=True, key="panel_compare_editor"):
         st.subheader("Compare molecules")
         with st.form("comparison_form"):
-            text = st.text_area("One SMILES per line (2–6)", EXAMPLE_SMILES, height=210)
+            text = st.text_area("One SMILES per line (2–6)", "", height=210)
             submitted = st.form_submit_button("Compare molecules", type="primary", width="stretch")
         chosen_model_note(model_id, runs)
-        st.caption("Example structures are for exploring the interface. A model score is not a desirability score or a validated drug ranking.")
+        st.caption("Enter structures to compare. A model score is not a desirability score or a validated drug ranking.")
         if submitted:
             st.session_state.pop("comparison_result", None)
             result = call("POST", "/molecules/compare",
                           json={"smiles": [line.strip() for line in text.splitlines() if line.strip()],
                                 "experiment_id": model_id})
-            if result:
-                st.session_state["comparison_result"] = result
-        if "comparison_result" not in st.session_state and not submitted:
-            result = call("POST", "/molecules/compare",
-                          json={"smiles": EXAMPLE_SMILES.splitlines(), "experiment_id": None})
             if result:
                 st.session_state["comparison_result"] = result
     result = st.session_state.get("comparison_result")
@@ -219,12 +213,12 @@ def profile_page(model_id, runs):
     with entry, st.container(border=True, key="panel_profile_editor"):
         st.subheader("Molecule input")
         with st.form("profile_form"):
-            smiles = st.text_input("SMILES", "CC(=O)Oc1ccccc1C(=O)O", max_chars=1000)
+            smiles = st.text_input("SMILES", "", max_chars=1000)
             submitted = st.form_submit_button("Build molecule profile", type="primary", width="stretch")
         if submitted:
             st.session_state.pop("molecule_profile", None)
             st.session_state.pop("profile_prediction", None)
-        if submitted or "molecule_profile" not in st.session_state:
+        if submitted:
             profile = call("POST", "/molecules/profile", json={"smiles": smiles})
             if profile:
                 st.session_state["molecule_profile"] = profile

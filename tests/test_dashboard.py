@@ -43,6 +43,8 @@ def test_workbench_navigation_and_read_only_previews(tmp_path, monkeypatch):
             app.radio[0].set_value(page).run(timeout=20)
             assert not app.exception and not app.error, page
             if page == "Compare molecules":
+                assert app.text_area[0].value == ""
+                app.text_area[0].set_value("Oc1ccccc1\nCc1ccccc1")
                 next(button for button in app.button if button.label == "Compare molecules").click().run(timeout=20)
                 assert not app.exception and not app.error
                 assert app.session_state["comparison_result"]["experiment_id"] == run["id"]
@@ -51,6 +53,9 @@ def test_workbench_navigation_and_read_only_previews(tmp_path, monkeypatch):
                 assert not app.exception and len(app.error) == 1
                 assert "comparison_result" not in app.session_state
             elif page == "Molecule profile":
+                assert next(field for field in app.text_input if field.label == "SMILES").value == ""
+                next(field for field in app.text_input if field.label == "SMILES").set_value("CC(=O)Oc1ccccc1C(=O)O")
+                next(button for button in app.button if button.label == "Build molecule profile").click().run(timeout=20)
                 next(button for button in app.button if button.label == "Preview model score").click().run(timeout=20)
                 assert not app.exception and not app.error
                 assert app.session_state["profile_prediction"]["prediction_id"] is None
@@ -82,6 +87,12 @@ def test_empty_workspace_and_completed_batch_views(tmp_path, monkeypatch):
                      'Datasets & evidence', 'Projects & history', 'Batch processing']:
             app.radio[0].set_value(page).run(timeout=20)
             assert not app.exception and not app.error, page
+            if page == 'Molecule profile':
+                assert next(field for field in app.text_input if field.label == 'SMILES').value == ''
+                assert 'molecule_profile' not in app.session_state
+            if page == 'Compare molecules':
+                assert app.text_area[0].value == ''
+                assert 'comparison_result' not in app.session_state
         job = api.post('/batch-jobs', json={'csv_content': 'smiles\nOc1ccccc1\ninvalid', 'smiles_column': 'smiles'}).json()
         process_next(session_factory(make_engine(url)))
         app.radio[0].set_value('Batch processing').run(timeout=20)

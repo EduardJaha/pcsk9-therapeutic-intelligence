@@ -27,7 +27,7 @@ Open [PCSK9 Lab](http://127.0.0.1:8501). If these services are already running, 
 
 Choose **Overview** in the sidebar. An empty database has zero measurements, experiments, predictions and dataset versions. The model molecule count displays a dash until a model exists. Messages about missing models or assay reviews are expected.
 
-Keep **Scoring model** set to **Structures only** for the next two steps. Example structures in the input forms are built-in examples; displaying them does not import measurements or save predictions.
+Keep **Scoring model** set to **Structures only** for the next two steps. Molecule input forms start blank. This tutorial provides example SMILES to paste explicitly; profiling or comparing them does not import measurements or save predictions.
 
 ## 3. Build a molecule profile without a model
 
