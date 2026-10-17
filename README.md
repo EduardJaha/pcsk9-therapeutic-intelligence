@@ -50,6 +50,18 @@ The Streamlit interface uses a sidebar workspace, molecular structure cards and 
 
 The **Scoring model** selector controls both profile scores and molecule comparisons. Select **Structures only** for calculations without a model. Comparison scores and profile previews do not create prediction records; **Save prediction** does. Invalid submissions clear the previous result. Model and dataset IDs are carried with every returned score. A direct link to the comparison workspace is `http://127.0.0.1:8501/?view=Compare%20molecules`.
 
+Chrome refresh restores the current page, project, scoring model, submitted molecule
+inputs and displayed profile/comparison results from a local recovery snapshot.
+Keep the `workspace` identifier in the address bar (or bookmark the full URL) to
+return to that workspace. A new URL without that identifier starts blank; changing
+projects clears the molecule workspace. Text typed into a form is retained after
+you submit it. Refresh does not repeat scoring or save predictions. Recovery
+snapshots are separate from research records and stay in ignored
+`data/workspaces/`; `WORKSPACE_STATE_DIR` can override that location. Only an
+opaque identifier appears in the URL, not molecular structures. If local storage
+cannot be read or written, the app shows a recovery warning. Saved predictions
+remain available in **Projects & history**.
+
 Structure cards report molecular weight, calculated logP and polar surface area; profiles also show hydrogen-bond donors, acceptors and rotatable bonds. These are calculated descriptors, not measured ADMET endpoints or desirability rankings. The interface currently supports the exploratory PCSK9 IC50 classifier; docking, ADMET endpoint models and calibrated uncertainty have not been established. Fingerprint PCA is fitted to the compared molecules only, so its axes and distances change when the comparison set changes. It is a structural visualization, not an applicability-domain validation.
 
 ## Quick start: macOS and Linux

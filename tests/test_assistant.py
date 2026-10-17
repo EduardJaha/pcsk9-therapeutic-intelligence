@@ -198,10 +198,11 @@ def test_blank_question_and_unsafe_source_url_are_rejected(api):
         {'title': 'Source', 'text': TEXT, 'url': 'file:///etc/passwd'}]}).status_code == 422
 
 
-def test_assistant_dashboard_preview_answer_and_failed_submission(api, monkeypatch):
+def test_assistant_dashboard_preview_answer_and_failed_submission(api, monkeypatch, tmp_path):
     from pathlib import Path
     from streamlit.testing.v1 import AppTest
     local_model(monkeypatch)
+    monkeypatch.setenv('WORKSPACE_STATE_DIR', str(tmp_path / 'workspaces'))
 
     class LocalAPI:
         def __init__(self, **kwargs): pass

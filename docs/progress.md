@@ -2,6 +2,23 @@
 
 Updated 2026-10-17. Task definitions: [approved roadmap](roadmap.md). User decisions: **no qualified reviewer yet; keep this release local with no hosting cost**. These decisions gate real-data approval and hosted/commercial work. Software acceptance and scientific evidence are reported separately.
 
+## Browser refresh recovery — 17 October 2026
+
+- Local recovery snapshots preserve the selected page, project, model, submitted
+  molecule inputs and displayed profile/comparison results across a fresh browser
+  session. URLs carry an opaque workspace identifier; research content stays under
+  ignored `data/workspaces/`. A URL without that identifier starts blank.
+- Restoring a snapshot repeats no profile, comparison or prediction requests and
+  creates no research records. Invalid submissions clear persisted results;
+  switching projects clears molecule inputs and output. Snapshot integrity and
+  atomic writes protect against partial/corrupt recovery files, with visible
+  warnings for read/write failures. Assistant drafts are not persisted.
+- Regression coverage uses fresh Streamlit sessions with retained URLs, temporary
+  databases and temporary recovery files. Offline suite: **64 passed, 3 skipped**
+  (PostgreSQL test database not configured). Direct Chrome interaction was not
+  exercised; refresh is simulated by discarding all Streamlit session state and
+  reusing only the URL. Scientific capabilities are unchanged.
+
 ## Pretrained assistant addition — 17 October 2026
 
 The user authorized starting with existing trained models, requested a dedicated
