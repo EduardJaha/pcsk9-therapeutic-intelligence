@@ -10,6 +10,7 @@ import httpx
 import streamlit as st
 
 from cvti.dashboard_ui import COLORS, apply_style, hero, molecule_card, pill, stat, validation_chart
+from cvti.dashboard_state import MOLECULE_KEYS, WorkspaceStore, workspace_token
 from cvti.reports import render_assay_review_csv, render_experiment_report
 
 
@@ -23,6 +24,34 @@ PROPERTIES = {
 }
 st.set_page_config(page_title="PCSK9 Lab · Research workbench", page_icon="⚗", layout="wide")
 apply_style()
+
+# Browser refresh starts a new Streamlit session. Recover only this URL's local
+# snapshot, never the most recent molecule from a different browser workspace.
+workspace_store = WorkspaceStore(API)
+if "workspace_token" not in st.session_state:
+    token = workspace_token(st.query_params.get("workspace"))
+    st.session_state["workspace_token"] = token
+    try:
+        st.session_state.update(workspace_store.load(token))
+    except (OSError, ValueError):
+        st.warning("The saved workspace could not be restored. Enter your molecule again; saved research records are still available in Projects & history.")
+    if st.query_params.get("view") in PAGES:
+        st.session_state["workspace_nav"] = st.query_params["view"]
+    st.query_params["workspace"] = token
+
+
+def clear_molecule_workspace():
+    for key in MOLECULE_KEYS:
+        st.session_state.pop(key, None)
+    for key in ("profile_smiles_widget", "comparison_smiles_widget"):
+        st.session_state.pop(key, None)
+
+
+def persist_workspace():
+    try:
+        workspace_store.save(st.session_state["workspace_token"], st.session_state)
+    except (OSError, ValueError):
+        st.warning("Workspace recovery could not be saved locally. Keep this tab open until local storage is writable.")
 
 
 def call(method, path, *, quiet=False, **kwargs):
@@ -137,11 +166,13 @@ def comparison(model_id, runs):
     with editor, st.container(border=True, key="panel_compare_editor"):
         st.subheader("Compare molecules")
         with st.form("comparison_form"):
-            text = st.text_area("One SMILES per line (2–6)", "", height=210)
+            text = st.text_area("One SMILES per line (2–6)", st.session_state.get("comparison_smiles", ""),
+                                height=210, key="comparison_smiles_widget")
             submitted = st.form_submit_button("Compare molecules", type="primary", width="stretch")
         chosen_model_note(model_id, runs)
         st.caption("Enter structures to compare. A model score is not a desirability score or a validated drug ranking.")
         if submitted:
+            st.session_state["comparison_smiles"] = text
             st.session_state.pop("comparison_result", None)
             result = call("POST", "/molecules/compare",
                           json={"smiles": [line.strip() for line in text.splitlines() if line.strip()],
@@ -213,12 +244,13 @@ def profile_page(model_id, runs):
     with entry, st.container(border=True, key="panel_profile_editor"):
         st.subheader("Molecule input")
         with st.form("profile_form"):
-            smiles = st.text_input("SMILES", "", max_chars=1000)
+            smiles = st.text_input("SMILES", st.session_state.get("profile_smiles", ""),
+                                   max_chars=1000, key="profile_smiles_widget")
             submitted = st.form_submit_button("Build molecule profile", type="primary", width="stretch")
         if submitted:
+            st.session_state["profile_smiles"] = smiles
             st.session_state.pop("molecule_profile", None)
             st.session_state.pop("profile_prediction", None)
-        if submitted:
             profile = call("POST", "/molecules/profile", json={"smiles": smiles})
             if profile:
                 st.session_state["molecule_profile"] = profile
@@ -715,8 +747,11 @@ with st.sidebar:
     projects = call('GET', '/projects') or [{'id': 1, 'name': 'Local project'}]
     project_ids = [p['id'] for p in projects]
     if st.session_state.get('active_project', 1) not in project_ids:
+        if connected:
+            clear_molecule_workspace()
         st.session_state['active_project'] = project_ids[0]
     project_id = st.selectbox('Research project', project_ids, key='active_project',
+                              on_change=clear_molecule_workspace,
                               format_func=lambda value: next(p['name'] for p in projects if p['id'] == value))
     runs = [run for run in runs if run.get('project_id', 1) == project_id]
     st.markdown('<div class="nav-caption">WORKSPACE</div>', unsafe_allow_html=True)
@@ -725,6 +760,7 @@ with st.sidebar:
     def update_view():
         st.query_params["view"] = st.session_state["workspace_nav"]
     page = st.radio("Workspace", PAGES, label_visibility="collapsed", key="workspace_nav", on_change=update_view)
+    st.query_params["view"] = page
     st.divider()
     st.markdown('<div class="nav-caption">SCORING MODEL</div>', unsafe_allow_html=True)
     options = [None] + [run["id"] for run in runs]
@@ -769,5 +805,6 @@ elif page == 'Projects & history':
     projects_page(project_id, runs)
 else:
     batch_page(project_id, model_id, runs)
+persist_workspace()
 st.markdown('<div class="app-footer"><span>PCSK9 Lab · Research hypotheses only. Not validated drugs or clinical guidance.</span>'
             '<span>Python · RDKit · scikit-learn</span></div>', unsafe_allow_html=True)

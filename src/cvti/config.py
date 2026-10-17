@@ -12,6 +12,7 @@ class Settings(BaseSettings):
 
     database_url: str = "sqlite:///./data/cvti.db"
     artifact_dir: str = "./data/artifacts"
+    workspace_state_dir: str = "./data/workspaces"
     chembl_base_url: str = "https://www.ebi.ac.uk/chembl/api/data"
     open_targets_graphql_url: str = "https://api.platform.opentargets.org/api/v4/graphql"
     http_timeout_seconds: float = Field(default=20, gt=0)
