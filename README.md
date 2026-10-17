@@ -23,6 +23,13 @@ See the [approved implementation roadmap](docs/roadmap.md), [verified progress](
 
 ## Research workbench
 
+The optional [local pretrained research assistant](docs/pretrained-assistant.md)
+summarizes explicitly selected dataset/report excerpts or pasted source text,
+with supporting quotes, source hashes and model identity. Open **Research assistant**
+to preview evidence; configure a local Ollama model to generate a research draft.
+This is a language-model integration, not a new molecular predictor or scientific
+approval. Inference is disabled until a local model is configured.
+
 Version 0.2 adds [source/review audits, baseline comparisons, projects, history and durable CSV jobs](docs/research-workflow.md). Run `cvti doctor` for diagnostics or `cvti start` to launch the API, dashboard and one local worker together.
 
 For a guided first session, follow the [step-by-step tutorial](docs/tutorial.md). Start with structure profiles and comparisons without adding data; load the synthetic demonstration only when you choose to.
@@ -32,6 +39,7 @@ The Streamlit interface uses a sidebar workspace, molecular structure cards and 
 | Page | What it does |
 |---|---|
 | Overview | Shows research readiness, saved experiment counts, scaffold evaluation and a preview of stored molecules. |
+| Research assistant | Previews selected evidence and asks an optional local pretrained model for cited, downloadable research drafts. |
 | Molecule profile | Draws a supported structure, calculates descriptors, previews an explicitly selected model's score and optionally saves a prediction. |
 | Compare molecules | Compares two to six structures, calculated properties and Morgan-fingerprint PCA positions; optionally adds scores from the selected experiment and exports a CSV. |
 | Assay review | Filters preserved assay decisions and opens source documents, full descriptions and exclusion reasons. |

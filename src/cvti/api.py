@@ -268,6 +268,8 @@ def create_app(database_url: str | None = None, artifact_dir: str | None = None)
 
     from cvti.research_api import router as research_router
     app.include_router(research_router(factory, artifact_dir or get_settings().artifact_dir))
+    from cvti.assistant_api import router as assistant_router
+    app.include_router(assistant_router(factory))
     return app
 
 
