@@ -32,6 +32,13 @@ approval. Inference is disabled until a local model is configured.
 
 Version 0.2 adds [source/review audits, baseline comparisons, projects, history and durable CSV jobs](docs/research-workflow.md). A [market workflow review](docs/market-workflow-review.md) informed read-only exact, substructure and similarity search over saved collections. Run `cvti doctor` for diagnostics or `cvti start` to launch the API, dashboard and one local worker together.
 
+The [integrated local research workflow](docs/integrated-research-workflow.md) adds
+a compound → batch → sample registry, staged CSV registration, sourced assay
+protocols/runs/observations with preserved corrections, saved candidate views,
+calculated-property filters and explicit model previews. Registry observations
+remain unreviewed and do not enter model training. Existing workspaces use an
+additive database migration; no registry examples are loaded automatically.
+
 For a guided first session, follow the [step-by-step tutorial](docs/tutorial.md). Start with structure profiles and comparisons without adding data; load the synthetic demonstration only when you choose to.
 
 The Streamlit interface uses a sidebar workspace, molecular structure cards and interactive charts. Open `http://127.0.0.1:8501/` and choose a page:
@@ -39,6 +46,9 @@ The Streamlit interface uses a sidebar workspace, molecular structure cards and 
 | Page | What it does |
 |---|---|
 | Overview | Shows research readiness, saved experiment counts, scaffold evaluation and a preview of stored molecules. |
+| Compound registry | Registers sourced compound identities, validates CSV imports before saving, and links material batches and samples. |
+| Candidate workbench | Filters registered structures and properties, reruns saved views, inspects raw assay evidence and previews selected model hypotheses. |
+| Assay records | Preserves protocol/run/sample context, original values and units, source references and observation corrections. |
 | Research assistant | Previews selected evidence and asks an optional local pretrained model for cited, downloadable research drafts. |
 | Molecule profile | Draws a supported structure, calculates descriptors, previews an explicitly selected model's score and optionally saves a prediction. |
 | Compare molecules | Compares two to six structures, calculated properties and Morgan-fingerprint PCA positions; optionally adds scores from the selected experiment and exports a CSV. |

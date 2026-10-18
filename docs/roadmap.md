@@ -155,3 +155,26 @@ R1 → R2/R3/R4 → R5 → D1–D4 → M1 → D5 → M2–M6. U tasks can procee
 Real training needs approved comparable data/audit/protocol. Independent claims need untouched compatible data. Hosted private access needs ownership/authentication/authorization. Spending needs explicit providers/budget. Commercial beta needs pilot/licensing/operations evidence. When a gate cannot pass, record the reason and continue independent useful work.
 
 Separate future plans: validated endpoint-specific ADMET, benchmarked docking, qualified laboratory experiments, molecular generation after evaluation exists. They are outside the initial implementation.
+
+## Market-informed local workflow extensions — 18 October 2026
+
+The user requested development based on the commercial/open-source workflow
+research while retaining the earlier local-workflow focus. The implementation
+scope and usage are in [the integrated workflow guide](integrated-research-workflow.md).
+These additions extend U2–U4 without satisfying D5 or scientific model gates:
+
+- **L1 — Material identity:** project-scoped registered compounds, explicit
+  modality, chemistry policy/version, original structures, batches and samples.
+- **L2 — Staged registration:** CSV mapping, row validation, retained input/plan
+  hashes, explicit atomic submission and idempotent history.
+- **L3 — Assay records:** immutable protocol/run context and material-linked raw
+  observations, origin/unit/modality checks and append-only corrections. All
+  remain unreviewed outside the training dataset path.
+- **L4 — Candidate workbench:** descriptor/structure filters, saved criteria,
+  source inspection, explicit read-only model previews and per-candidate errors.
+- **L5 — Portable evidence:** selected-project export with original inputs,
+  correction history, checksums and backup/restore preservation.
+
+No new predictor architecture, pretrained checkpoint, external inference,
+generative engine, synthesis planner or infrastructure is implied by these tasks.
+Those need a concrete scientific use case, compatible data and their own gates.

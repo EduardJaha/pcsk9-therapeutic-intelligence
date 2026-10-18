@@ -2,6 +2,43 @@
 
 Updated 2026-10-18. Task definitions: [approved roadmap](roadmap.md). User decisions: **no qualified reviewer yet; keep this release local with no hosting cost**. These decisions gate real-data approval and hosted/commercial work. Software acceptance and scientific evidence are reported separately.
 
+## Integrated registry and research workflow — 18 October 2026
+
+The user requested further development based on the deeper commercial and GitHub
+research. Work is on `codex/integrated-research-workflows`; the
+[workflow guide](integrated-research-workflow.md) maps source patterns to the
+delivered local features and documents all interfaces and limits.
+
+- **L1/L2:** project-scoped compound identities with original structures, explicit
+  modality, chemistry policy/RDKit version and descriptors; material batches and
+  samples; CSV column mapping and retained input/plan checksums; per-row validation,
+  explicit atomic registration and idempotent import history.
+- **L3:** PCSK9 protocol/run/sample-linked observations with endpoint/readout/units,
+  species/constructs/method/conditions and attributable sources. Cross-project,
+  origin, modality and unit mismatches are rejected. Corrections are new records
+  with rationale and links to retained originals. All observations remain
+  unreviewed outside the curated training path.
+- **L4/L5:** candidate descriptor/structure filters, saved criteria with integrity
+  checks, property plots, direct source/observation inspection, explicit read-only
+  model previews with per-candidate errors, and project ZIP exports retaining
+  original CSVs, observation history and file checksums. Existing backups preserve
+  registry/import records after relocation. Three new Streamlit pages have empty
+  and populated navigation coverage.
+- The additive `e40c6d53a934` migration preserves existing records and supports both
+  database backends. It was exercised only in temporary test workspaces; the user's
+  research database was not upgraded or populated during development.
+- Verification: **76 passed, 4 skipped** in the full offline suite. PostgreSQL
+  integration/restore checks were skipped because `TEST_DATABASE_URL` was not
+  configured. SQLite preserving migrations, schema/ORM parity, staged import
+  rollback, source/scoping checks, corrections, read-only scoring, exports,
+  relocated backup recovery, consistent export snapshots during concurrent writes,
+  and the dashboard workflow passed. Browser inspection
+  used real local API/Streamlit servers with synthetic records in a temporary
+  workspace; candidate/assay/registry pages rendered. Temporary servers were stopped.
+- No model weights or external models were downloaded, no new predictor was
+  evaluated, and no scientific assay approval or real-data model acceptance was
+  inferred. The D5/M gates and hosting decisions below remain in effect.
+
 ## Local collection search — 18 October 2026
 
 - A [focused market workflow review](market-workflow-review.md) compared documented CDD Vault, DataWarrior, Benchling and KNIME workflows. The selected gap was read-only structure search in the existing local collections page.

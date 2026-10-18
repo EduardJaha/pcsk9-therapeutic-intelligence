@@ -51,6 +51,17 @@ def test_database_vertical_slice(backend_url, tmp_path):
         assert client.get('/summary').json()['predictions'] == 1
 
 
+def test_registry_and_saved_view_on_each_backend(backend_url, tmp_path):
+    with TestClient(create_app(backend_url, str(tmp_path / 'models'))) as client:
+        record = client.post('/registry/compounds', json={'smiles': 'CCO', 'name': 'Preserved candidate',
+            'modality': 'small_molecule', 'source_reference': 'Synthetic backend test'}).json()
+        assert record['canonical_smiles'] == 'CCO'
+        view = client.post('/registry/views', json={'name': 'All candidates', 'criteria': {}}).json()
+        assert client.post(f'/registry/views/{view["id"]}/run', json={}).json()['total_hits'] == 1
+        detail = client.get(f'/registry/compounds/{record["id"]}').json()
+        assert detail['compound']['name'] == 'Preserved candidate'
+
+
 def test_supported_migrations_preserve_rows(backend_url):
     config = Config(str(Path(__file__).parents[1] / 'alembic.ini'))
     config.attributes['database_url'] = backend_url

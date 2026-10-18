@@ -16,7 +16,7 @@ from cvti.reports import render_assay_review_csv, render_experiment_report
 
 API = os.getenv("API_URL", "http://127.0.0.1:8000").rstrip("/")
 API_REFERENCE_URL = os.getenv("API_REFERENCE_URL", f"{API}/docs")
-PAGES = ["Overview", "Research assistant", "Molecule profile", "Compare molecules", "Assay review", "Models & reports", "Datasets & evidence", "Projects & history", "Batch processing"]
+PAGES = ["Overview", "Compound registry", "Candidate workbench", "Assay records", "Research assistant", "Molecule profile", "Compare molecules", "Assay review", "Models & reports", "Datasets & evidence", "Projects & history", "Batch processing"]
 PROPERTIES = {
     "Molecular weight · g/mol": "molecular_weight", "Calculated logP": "logp",
     "Polar surface area · Å²": "tpsa", "H-bond donors": "h_bond_donors",
@@ -44,6 +44,8 @@ def clear_molecule_workspace():
     for key in MOLECULE_KEYS:
         st.session_state.pop(key, None)
     st.session_state.pop('collection_search_result', None)
+    for key in ('registry_preview', 'candidate_result', 'candidate_scores'):
+        st.session_state.pop(key, None)
     for key in ("profile_smiles_widget", "comparison_smiles_widget"):
         st.session_state.pop(key, None)
 
@@ -806,7 +808,7 @@ with st.sidebar:
         run = next(r for r in runs if r["id"] == value)
         return f"{'Demo' if run['data_source'] == 'synthetic_fixture' else 'ChEMBL'} · experiment {value}"
     model_id = st.selectbox("Scoring model", options, key="scoring_model", format_func=model_label, label_visibility="collapsed")
-    st.caption("Used explicitly for profile scores and molecule comparisons.")
+    st.caption("Used explicitly for profiles, molecule comparisons and candidate previews.")
     st.markdown('<div class="sidebar-note"><strong>Evidence before confidence</strong>'
                 'All model outputs are research hypotheses. Synthetic scores demonstrate software behavior only.</div>', unsafe_allow_html=True)
     st.link_button("Open API reference", API_REFERENCE_URL, width="stretch")
@@ -836,6 +838,15 @@ elif page == 'Datasets & evidence':
     datasets_page(versions)
 elif page == 'Projects & history':
     projects_page(project_id, runs)
+elif page == 'Compound registry':
+    from cvti.registry_ui import registry_page
+    registry_page(project_id, call, call_file)
+elif page == 'Assay records':
+    from cvti.registry_ui import assays_page
+    assays_page(project_id, call, call_file)
+elif page == 'Candidate workbench':
+    from cvti.registry_ui import candidates_page
+    candidates_page(project_id, model_id, runs, call)
 else:
     batch_page(project_id, model_id, runs)
 persist_workspace()
