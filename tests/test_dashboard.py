@@ -48,7 +48,7 @@ def test_workbench_navigation_and_read_only_previews(tmp_path, monkeypatch):
         monkeypatch.delenv("API_URL", raising=False)
         app = AppTest.from_file(str(Path(__file__).parents[1] / "dashboard.py")).run(timeout=20)
         assert not app.exception and not app.error
-        for page in ["Research assistant", "Compare molecules", "Molecule profile", "Assay review", "Models & reports", "Datasets & evidence", "Projects & history", "Batch processing"]:
+        for page in ["Compound registry", "Candidate workbench", "Assay records", "Research assistant", "Compare molecules", "Molecule profile", "Assay review", "Models & reports", "Datasets & evidence", "Projects & history", "Batch processing"]:
             app.radio[0].set_value(page).run(timeout=20)
             assert not app.exception and not app.error, page
             if page == "Compare molecules":
@@ -92,7 +92,7 @@ def test_empty_workspace_and_completed_batch_views(tmp_path, monkeypatch):
         monkeypatch.delenv('API_URL', raising=False)
         app = AppTest.from_file(str(Path(__file__).parents[1] / 'dashboard.py')).run(timeout=20)
         assert not app.exception and not app.error
-        for page in ['Research assistant', 'Molecule profile', 'Compare molecules', 'Assay review', 'Models & reports',
+        for page in ['Compound registry', 'Candidate workbench', 'Assay records', 'Research assistant', 'Molecule profile', 'Compare molecules', 'Assay review', 'Models & reports',
                      'Datasets & evidence', 'Projects & history', 'Batch processing']:
             app.radio[0].set_value(page).run(timeout=20)
             assert not app.exception and not app.error, page
@@ -135,6 +135,72 @@ def test_collection_search_in_dashboard_does_not_write_research_records(tmp_path
         next(button for button in app.button if button.label == 'Search structures').click().run(timeout=20)
         assert len(app.error) == 1
         assert app.session_state.get('collection_search_result') is None
+
+
+def test_registry_materials_assay_records_and_candidate_views_in_dashboard(tmp_path, monkeypatch):
+    url = f'sqlite:///{tmp_path / "integrated-registry.db"}'
+    with TestClient(create_app(url, str(tmp_path / 'models'))) as api:
+        class LocalAPI:
+            def __init__(self, **kwargs): pass
+            def __enter__(self): return self
+            def __exit__(self, *args): pass
+            def request(self, method, path, **kwargs): return api.request(method, path, **kwargs)
+
+        monkeypatch.setattr(httpx, 'Client', LocalAPI)
+        monkeypatch.delenv('API_URL', raising=False)
+        app = AppTest.from_file(str(Path(__file__).parents[1] / 'dashboard.py')).run(timeout=20)
+
+        def field(label):
+            return next(item for item in app.text_input if item.label == label)
+
+        def choose(label, value):
+            next(item for item in app.selectbox if item.label == label).set_value(value)
+
+        def click(label):
+            next(item for item in app.button if item.label == label).click().run(timeout=20)
+            assert not app.exception and not app.error, [item.value for item in app.error]
+
+        app.radio[0].set_value('Compound registry').run(timeout=20)
+        assert field('Registry SMILES').value == ''
+        field('Registry SMILES').set_value('Oc1ccccc1')
+        field('Compound name (optional)').set_value('UI test compound')
+        field('Structure source reference').set_value('Synthetic test source')
+        choose('Compound modality', 'small_molecule')
+        click('Register compound')
+        field('Batch name').set_value('UI batch')
+        field('Batch source reference').set_value('Synthetic test batch')
+        choose('Batch data origin', 'synthetic')
+        click('Record batch')
+        field('Sample name').set_value('UI sample')
+        click('Record sample')
+        sample = api.get('/registry/materials').json()['samples'][0]
+        protocol = api.post('/registry/protocols', json={'name': 'UI protocol', 'endpoint': 'pcsk9_ldlr_binding',
+            'activity_type': 'IC50', 'units': 'nM', 'modality': 'small_molecule', 'species': 'Human',
+            'constructs': 'Synthetic construct', 'method': 'Synthetic method', 'conditions': 'Synthetic conditions',
+            'source_reference': 'Synthetic test protocol'}).json()
+        api.post('/registry/runs', json={'protocol_id': protocol['id'], 'name': 'UI run', 'performed_on': '2026-10-10',
+            'operator': 'Test operator', 'data_origin': 'synthetic', 'source_reference': 'Synthetic test run'})
+        app.radio[0].set_value('Assay records').run(timeout=20)
+        field('Source result identifier').set_value('UI result 1')
+        field('Original numeric value').set_value('2.500')
+        field('Observation source reference').set_value('Synthetic test row')
+        click('Record observation')
+        recorded = api.get('/registry/observations').json()['items']
+        assert len(recorded) == 1 and recorded[0]['sample_id'] == sample['id'] and recorded[0]['value_text'] == '2.500'
+        app.radio[0].set_value('Candidate workbench').run(timeout=20)
+        assert app.session_state['candidate_result']['total_hits'] == 1
+        field('New candidate view name').set_value('UI saved view')
+        click('Save applied candidate view')
+        click('Run saved candidate view')
+        assert api.get('/registry/views').json()[0]['name'] == 'UI saved view'
+        other = api.post('/projects', json={'name': 'Other project'}).json()
+        app.run(timeout=20)
+        choose('Research project', other['id'])
+        app.run(timeout=20)
+        assert app.session_state['candidate_result']['project_id'] == other['id']
+        assert app.session_state['candidate_result']['total_hits'] == 0
+        assert api.get('/summary').json()['predictions'] == 0
+        assert api.get('/summary').json()['measurements'] == 0
 
 
 def test_browser_refresh_restores_molecules_without_repeating_requests(tmp_path, monkeypatch):

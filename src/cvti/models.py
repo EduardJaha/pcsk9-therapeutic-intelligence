@@ -1,6 +1,6 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
-from sqlalchemy import DateTime, Float, ForeignKey, Index, Integer, JSON, LargeBinary, String, Text, UniqueConstraint
+from sqlalchemy import Date, DateTime, Float, ForeignKey, Index, Integer, JSON, LargeBinary, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from cvti.db import Base
@@ -169,3 +169,118 @@ class BatchJob(Base):
     input_rows: Mapped[list] = mapped_column(JSON)
     result_rows: Mapped[list] = mapped_column(JSON, default=list)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class RegisteredCompound(Base):
+    __tablename__ = 'registered_compounds'
+    __table_args__ = (UniqueConstraint('project_id', 'structure_sha256', name='uq_registry_project_structure'),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey('projects.id'))
+    name: Mapped[str] = mapped_column(String(120))
+    input_smiles: Mapped[str] = mapped_column(Text)
+    canonical_smiles: Mapped[str] = mapped_column(Text)
+    structure_sha256: Mapped[str] = mapped_column(String(64))
+    modality: Mapped[str] = mapped_column(String(40))
+    source_reference: Mapped[str] = mapped_column(Text)
+    notes: Mapped[str] = mapped_column(Text, default='')
+    chemistry_json: Mapped[dict] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class CompoundBatch(Base):
+    __tablename__ = 'compound_batches'
+    __table_args__ = (UniqueConstraint('compound_id', 'name', name='uq_compound_batch_name'),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    compound_id: Mapped[int] = mapped_column(ForeignKey('registered_compounds.id'))
+    name: Mapped[str] = mapped_column(String(120))
+    data_origin: Mapped[str] = mapped_column(String(20))
+    source_reference: Mapped[str] = mapped_column(Text)
+    notes: Mapped[str] = mapped_column(Text, default='')
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class MaterialSample(Base):
+    __tablename__ = 'material_samples'
+    __table_args__ = (UniqueConstraint('batch_id', 'name', name='uq_batch_sample_name'),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    batch_id: Mapped[int] = mapped_column(ForeignKey('compound_batches.id'))
+    name: Mapped[str] = mapped_column(String(120))
+    location: Mapped[str] = mapped_column(String(240), default='')
+    notes: Mapped[str] = mapped_column(Text, default='')
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class AssayProtocol(Base):
+    __tablename__ = 'assay_protocols'
+    __table_args__ = (UniqueConstraint('project_id', 'name', name='uq_project_protocol_name'),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey('projects.id'))
+    name: Mapped[str] = mapped_column(String(120))
+    target_id: Mapped[str] = mapped_column(String(40), default='CHEMBL2929')
+    endpoint: Mapped[str] = mapped_column(String(80))
+    activity_type: Mapped[str] = mapped_column(String(40))
+    units: Mapped[str] = mapped_column(String(40))
+    modality: Mapped[str] = mapped_column(String(40))
+    species: Mapped[str] = mapped_column(String(120))
+    constructs: Mapped[str] = mapped_column(Text)
+    method: Mapped[str] = mapped_column(Text)
+    conditions: Mapped[str] = mapped_column(Text)
+    source_reference: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class AssayRun(Base):
+    __tablename__ = 'assay_runs'
+    __table_args__ = (UniqueConstraint('protocol_id', 'name', name='uq_protocol_run_name'),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    protocol_id: Mapped[int] = mapped_column(ForeignKey('assay_protocols.id'))
+    name: Mapped[str] = mapped_column(String(120))
+    performed_on: Mapped[date] = mapped_column(Date)
+    operator: Mapped[str] = mapped_column(String(120))
+    data_origin: Mapped[str] = mapped_column(String(20))
+    source_reference: Mapped[str] = mapped_column(Text)
+    notes: Mapped[str] = mapped_column(Text, default='')
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class AssayObservation(Base):
+    __tablename__ = 'assay_observations'
+    __table_args__ = (UniqueConstraint('run_id', 'source_record_id', name='uq_run_source_record'),
+                      UniqueConstraint('supersedes_id', name='uq_observation_supersedes'),
+                      Index('ix_assay_observations_sample_id', 'sample_id'))
+    id: Mapped[int] = mapped_column(primary_key=True)
+    run_id: Mapped[int] = mapped_column(ForeignKey('assay_runs.id'))
+    sample_id: Mapped[int] = mapped_column(ForeignKey('material_samples.id'))
+    supersedes_id: Mapped[int | None] = mapped_column(ForeignKey('assay_observations.id'), nullable=True)
+    source_record_id: Mapped[str] = mapped_column(String(120))
+    value_text: Mapped[str] = mapped_column(String(80))
+    numeric_value: Mapped[float] = mapped_column(Float)
+    relation: Mapped[str] = mapped_column(String(4))
+    source_reference: Mapped[str] = mapped_column(Text)
+    notes: Mapped[str] = mapped_column(Text, default='')
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class RegistrationImport(Base):
+    __tablename__ = 'registration_imports'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey('projects.id'))
+    status: Mapped[str] = mapped_column(String(20), default='preview')
+    input_sha256: Mapped[str] = mapped_column(String(64))
+    plan_sha256: Mapped[str] = mapped_column(String(64))
+    csv_content: Mapped[str] = mapped_column(Text)
+    settings_json: Mapped[dict] = mapped_column(JSON)
+    rows_json: Mapped[list] = mapped_column(JSON)
+    outcome_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class ResearchView(Base):
+    __tablename__ = 'research_views'
+    __table_args__ = (UniqueConstraint('project_id', 'name', name='uq_project_research_view_name'),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey('projects.id'))
+    name: Mapped[str] = mapped_column(String(120))
+    criteria_json: Mapped[dict] = mapped_column(JSON)
+    criteria_sha256: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

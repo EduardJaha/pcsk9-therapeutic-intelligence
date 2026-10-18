@@ -24,6 +24,10 @@ def _prepare(url, directory):
         run = response.json()
         prediction = client.post('/predict', json={'smiles': 'CC1CCCCC1'}).json()
         report = client.get(f'/experiments/{run["id"]}/report').json()
+        stage = client.post('/registry/imports/preview', json={'csv_content': 'name,smiles\nBackup candidate,Oc1ccccc1\n',
+            'smiles_column': 'smiles', 'name_column': 'name', 'modality': 'small_molecule',
+            'source_reference': 'Synthetic recovery test'}).json()
+        assert client.post(f'/registry/imports/{stage["id"]}/commit', json={'plan_sha256': stage['plan_sha256']}).status_code == 200
     return run, prediction, report
 
 
@@ -52,6 +56,8 @@ def test_sqlite_backup_relocation_and_tamper(tmp_path):
         result = client.post('/predict', json={'smiles': 'CC1CCCCC1', 'save': False}).json()
         assert result['probability_exploratory_activity'] == prediction['probability_exploratory_activity']
         assert client.get('/summary').json()['predictions'] == 1
+        assert client.get('/registry/compounds').json()['items'][0]['name'] == 'Backup candidate'
+        assert client.get('/registry/imports/1').json()['status'] == 'committed'
     with pytest.raises(ValueError, match='Destination exists'):
         restore_backup(archive, destination, services_stopped=True)
     tampered = tmp_path / 'tampered.zip'
@@ -84,6 +90,7 @@ def test_postgres_backup_restore(tmp_path):
         with TestClient(create_app(urls[1], str(destination / 'artifacts'))) as client:
             assert client.get(f'/experiments/{run["id"]}/report').json()['dataset_version'] == report['dataset_version']
             assert client.post('/predict', json={'smiles': 'CC1CCCCC1', 'save': False}).json()['probability_exploratory_activity'] == prediction['probability_exploratory_activity']
+            assert client.get('/registry/compounds').json()['items'][0]['name'] == 'Backup candidate'
     finally:
         with admin.connect() as connection:
             for name in names:

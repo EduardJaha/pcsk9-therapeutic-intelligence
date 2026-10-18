@@ -25,3 +25,13 @@ structure sketcher, saved searches, chemical property filters, assay joins,
 multi-user sharing, or molecular prediction evidence. Those would require their
 own use cases and validation. A structural match alone is no evidence of PCSK9
 activity, safety, or clinical suitability.
+
+## Deeper workflow implementation — 18 October 2026
+
+Following the subsequent commercial and open-source investigation, the user
+requested further development. Compound/material identity, staged CSV
+registration, structured assay records with correction history, saved candidate
+views and model provenance inspection are now described in the
+[integrated workflow guide](integrated-research-workflow.md). The earlier
+"Delivered in this pass" section records the narrower structure-search delivery;
+the guide documents the later additions and their current limits.
