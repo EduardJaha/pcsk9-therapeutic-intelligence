@@ -8,6 +8,11 @@ from rdkit.Chem.Scaffolds import MurckoScaffold
 _fingerprinter = rdFingerprintGenerator.GetMorganGenerator(radius=2, fpSize=2048)
 
 
+def morgan_bits(mol):
+    """The same radius-2, 2048-bit representation used by local models."""
+    return _fingerprinter.GetFingerprint(mol)
+
+
 def standardize(smiles: str) -> tuple[str, str]:
     """Return charge-parent canonical SMILES and its Bemis–Murcko scaffold."""
     mol = Chem.MolFromSmiles(smiles or "")
@@ -25,7 +30,7 @@ def fingerprint(smiles: str) -> np.ndarray:
     mol = Chem.MolFromSmiles(smiles)
     if mol is None:
         raise ValueError("Invalid SMILES")
-    bits = _fingerprinter.GetFingerprint(mol)
+    bits = morgan_bits(mol)
     array = np.zeros((2048,), dtype=np.int8)
     DataStructs.ConvertToNumpyArray(bits, array)
     return array

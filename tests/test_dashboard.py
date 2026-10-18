@@ -110,6 +110,33 @@ def test_empty_workspace_and_completed_batch_views(tmp_path, monkeypatch):
         assert api.get('/summary').json()['measurements'] == 0
 
 
+def test_collection_search_in_dashboard_does_not_write_research_records(tmp_path, monkeypatch):
+    url = f'sqlite:///{tmp_path / "collection-search.db"}'
+    with TestClient(create_app(url, str(tmp_path / 'models'))) as api:
+        collection = api.post('/collections', json={'project_id': 1, 'name': 'Candidates'}).json()
+        api.post(f'/collections/{collection["id"]}/molecules', json={'smiles': 'Oc1ccccc1'})
+
+        class LocalAPI:
+            def __init__(self, **kwargs): pass
+            def __enter__(self): return self
+            def __exit__(self, *args): pass
+            def request(self, method, path, **kwargs): return api.request(method, path, **kwargs)
+
+        monkeypatch.setattr(httpx, 'Client', LocalAPI)
+        monkeypatch.delenv('API_URL', raising=False)
+        app = AppTest.from_file(str(Path(__file__).parents[1] / 'dashboard.py')).run(timeout=20)
+        app.radio[0].set_value('Projects & history').run(timeout=20)
+        next(field for field in app.text_input if field.label == 'Search SMILES').set_value('c1ccccc1O')
+        next(button for button in app.button if button.label == 'Search structures').click().run(timeout=20)
+        assert not app.exception and not app.error, [item.value for item in app.error]
+        assert app.session_state['collection_search_result']['total_hits'] == 1
+        assert api.get('/summary').json()['predictions'] == 0
+        next(field for field in app.text_input if field.label == 'Search SMILES').set_value('invalid')
+        next(button for button in app.button if button.label == 'Search structures').click().run(timeout=20)
+        assert len(app.error) == 1
+        assert app.session_state.get('collection_search_result') is None
+
+
 def test_browser_refresh_restores_molecules_without_repeating_requests(tmp_path, monkeypatch):
     dashboard = str(Path(__file__).parents[1] / 'dashboard.py')
     with TestClient(create_app(f'sqlite:///{tmp_path / "refresh.db"}', str(tmp_path / 'models'))) as api:
