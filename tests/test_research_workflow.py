@@ -54,6 +54,40 @@ def test_projects_collections_history_batch_and_report(tmp_path, monkeypatch):
         assert client.post('/batch-jobs', json={'csv_content': csv_text, 'smiles_column': 'structure'}).status_code == 422
 
 
+def test_collection_structure_search_is_scoped_read_only_and_attributed(tmp_path):
+    url = f'sqlite:///{tmp_path / "search.db"}'
+    with TestClient(create_app(url, str(tmp_path / 'models'))) as client:
+        local = client.get('/projects').json()[0]
+        other = client.post('/projects', json={'name': 'Other'}).json()
+        first = client.post('/collections', json={'project_id': local['id'], 'name': 'First'}).json()
+        second = client.post('/collections', json={'project_id': local['id'], 'name': 'Second'}).json()
+        private = client.post('/collections', json={'project_id': other['id'], 'name': 'Elsewhere'}).json()
+        for collection, smiles in [(first, 'Oc1ccccc1'), (first, 'Cc1ccccc1'),
+                                    (second, 'c1ccccc1O'), (private, 'Oc1ccccc1')]:
+            response = client.post(f'/collections/{collection["id"]}/molecules', json={'smiles': smiles})
+            assert response.status_code == 200
+        endpoint = '/collections/search'
+        params = {'project_id': local['id'], 'smiles': 'c1ccccc1O'}
+        exact = client.get(endpoint, params={**params, 'mode': 'exact'}).json()
+        assert exact['total_hits'] == 2 and exact['searched'] == 3
+        assert {row['collection_id'] for row in exact['items']} == {first['id'], second['id']}
+        assert all(row['similarity'] is None for row in exact['items'])
+        substructure = client.get(endpoint, params={**params, 'smiles': 'c1ccccc1', 'mode': 'substructure'}).json()
+        assert substructure['total_hits'] == 3
+        scoped = client.get(endpoint, params={**params, 'mode': 'exact', 'collection_id': first['id']}).json()
+        assert scoped['total_hits'] == 1 and scoped['searched'] == 2
+        similarity = client.get(endpoint, params={**params, 'mode': 'similarity', 'min_similarity': 0,
+                                                  'limit': 1}).json()
+        assert similarity['total_hits'] == 3 and similarity['returned'] == 1
+        assert similarity['items'][0]['similarity'] == 1.0
+        assert client.get(endpoint, params={**params, 'collection_id': private['id']}).status_code == 404
+        assert client.get(endpoint, params={**params, 'mode': 'bad'}).status_code == 422
+        assert client.get(endpoint, params={**params, 'smiles': 'invalid'}).status_code == 422
+        assert client.get(endpoint, params={**params, 'smiles': 'C', 'mode': 'substructure'}).status_code == 422
+        assert len(client.get(f'/collections/{first["id"]}/molecules').json()) == 2
+        assert client.get('/summary').json()['predictions'] == 0
+
+
 def test_worker_checkpoint_and_explicit_retry(tmp_path, monkeypatch):
     import cvti.batches as batches
     url = f'sqlite:///{tmp_path / "resume.db"}'

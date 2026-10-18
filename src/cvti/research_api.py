@@ -12,6 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from cvti.batches import csv_export, job_summary, retry_batch, submit_batch
 from cvti.chemistry import standardize
 from cvti.models import BatchJob, Collection, CollectionMolecule, DatasetVersion, Experiment, Prediction, Project
+from cvti.structure_search import search_collections
 
 
 class NamedRequest(BaseModel):
@@ -94,6 +95,19 @@ def router(factory, artifact_dir):
                 session.rollback()
                 raise HTTPException(409, 'A collection with this name already exists in the project') from exc
             return {'id': collection.id, 'name': collection.name, 'project_id': collection.project_id}
+
+    @api.get('/collections/search')
+    def search_saved_structures(project_id: int = Query(1, gt=0), smiles: str = Query(..., min_length=1, max_length=1000),
+                                mode: str = 'similarity', collection_id: int | None = Query(None, gt=0),
+                                min_similarity: float = Query(0.5, ge=0, le=1), limit: int = Query(500, ge=1, le=1000)):
+        with factory() as session:
+            try:
+                return search_collections(session, project_id=project_id, smiles=smiles, mode=mode,
+                                          collection_id=collection_id, min_similarity=min_similarity, limit=limit)
+            except LookupError as exc:
+                raise HTTPException(404, str(exc)) from exc
+            except ValueError as exc:
+                raise HTTPException(422, str(exc)) from exc
 
     @api.get('/collections/{collection_id}/molecules')
     def collection_entries(collection_id: int):

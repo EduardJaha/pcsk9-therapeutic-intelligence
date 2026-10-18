@@ -30,7 +30,7 @@ to preview evidence; configure a local Ollama model to generate a research draft
 This is a language-model integration, not a new molecular predictor or scientific
 approval. Inference is disabled until a local model is configured.
 
-Version 0.2 adds [source/review audits, baseline comparisons, projects, history and durable CSV jobs](docs/research-workflow.md). Run `cvti doctor` for diagnostics or `cvti start` to launch the API, dashboard and one local worker together.
+Version 0.2 adds [source/review audits, baseline comparisons, projects, history and durable CSV jobs](docs/research-workflow.md). A [market workflow review](docs/market-workflow-review.md) informed read-only exact, substructure and similarity search over saved collections. Run `cvti doctor` for diagnostics or `cvti start` to launch the API, dashboard and one local worker together.
 
 For a guided first session, follow the [step-by-step tutorial](docs/tutorial.md). Start with structure profiles and comparisons without adding data; load the synthetic demonstration only when you choose to.
 
@@ -45,7 +45,7 @@ The Streamlit interface uses a sidebar workspace, molecular structure cards and 
 | Assay review | Filters preserved assay decisions and opens source documents, full descriptions and exclusion reasons. |
 | Models & reports | Runs synthetic demonstrations, displays class balance and scaffold holdouts, and exports experiment reports. |
 | Datasets & evidence | Inspects version checksums, selection rules, dataset audit and contextual disease evidence. |
-| Projects & history | Organizes projects/collections/notes, saved predictions and unified report exports. |
+| Projects & history | Organizes projects/collections/notes, searches saved structures, retrieves predictions and exports reports. |
 | Batch processing | Processes CSV molecule lists using one durable local worker, with per-row outcomes and explicit saving. |
 
 The **Scoring model** selector controls both profile scores and molecule comparisons. Select **Structures only** for calculations without a model. Comparison scores and profile previews do not create prediction records; **Save prediction** does. Invalid submissions clear the previous result. Model and dataset IDs are carried with every returned score. A direct link to the comparison workspace is `http://127.0.0.1:8501/?view=Compare%20molecules`.
@@ -63,6 +63,8 @@ cannot be read or written, the app shows a recovery warning. Saved predictions
 remain available in **Projects & history**.
 
 Structure cards report molecular weight, calculated logP and polar surface area; profiles also show hydrogen-bond donors, acceptors and rotatable bonds. These are calculated descriptors, not measured ADMET endpoints or desirability rankings. The interface currently supports the exploratory PCSK9 IC50 classifier; docking, ADMET endpoint models and calibrated uncertainty have not been established. Fingerprint PCA is fitted to the compared molecules only, so its axes and distances change when the comparison set changes. It is a structural visualization, not an applicability-domain validation.
+
+In **Projects & history**, create a collection and add molecules, then search all collections in the selected project or one collection by SMILES. Exact search compares standardized structures; substructure search matches the entered SMILES graph with chirality considered; similarity search ranks Morgan radius-2, 2048-bit fingerprint Tanimoto scores. Results retain collection/entry IDs and notes. The table shows at most 500 hits and **Download search results CSV** exports those displayed hits. A search is read-only and does not create evidence, predictions or measurements. It examines up to 10,000 saved entries per request; select one collection if the scope is larger. Similarity is structural resemblance, not biological activity, calibrated confidence or a validated applicability domain. The API endpoint is `GET /collections/search?project_id=1&smiles=Oc1ccccc1&mode=similarity&min_similarity=0.5`; `mode` can also be `exact` or `substructure`, and optional `collection_id` narrows the scope.
 
 ## Quick start: macOS and Linux
 

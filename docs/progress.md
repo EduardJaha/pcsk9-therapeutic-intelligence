@@ -1,6 +1,13 @@
 # Roadmap progress — local release 0.2
 
-Updated 2026-10-17. Task definitions: [approved roadmap](roadmap.md). User decisions: **no qualified reviewer yet; keep this release local with no hosting cost**. These decisions gate real-data approval and hosted/commercial work. Software acceptance and scientific evidence are reported separately.
+Updated 2026-10-18. Task definitions: [approved roadmap](roadmap.md). User decisions: **no qualified reviewer yet; keep this release local with no hosting cost**. These decisions gate real-data approval and hosted/commercial work. Software acceptance and scientific evidence are reported separately.
+
+## Local collection search — 18 October 2026
+
+- A [focused market workflow review](market-workflow-review.md) compared documented CDD Vault, DataWarrior, Benchling and KNIME workflows. The selected gap was read-only structure search in the existing local collections page.
+- Exact, substructure and Morgan fingerprint Tanimoto similarity search now operate within the selected project, with optional collection scope, stable result ordering, source entry IDs, notes, counts and displayed-results CSV export. Search does not add predictions, measurements or reviews.
+- This is structural retrieval only. No model quality, PCSK9 activity, assay comparability or applicability claim follows from a match. Saved queries, sketching and enterprise workflow features remain outside this pass.
+- Verification: the full offline suite passed (**66 passed, 3 skipped**; PostgreSQL test database not configured), including API project isolation and Streamlit form coverage. `git diff --check` passed. A live browser session against the user's database was not exercised.
 
 ## Browser refresh recovery — 17 October 2026
 

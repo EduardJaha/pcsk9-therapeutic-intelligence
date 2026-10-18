@@ -43,6 +43,7 @@ if "workspace_token" not in st.session_state:
 def clear_molecule_workspace():
     for key in MOLECULE_KEYS:
         st.session_state.pop(key, None)
+    st.session_state.pop('collection_search_result', None)
     for key in ("profile_smiles_widget", "comparison_smiles_widget"):
         st.session_state.pop(key, None)
 
@@ -599,6 +600,38 @@ def projects_page(project_id, runs):
         st.dataframe(entries, hide_index=True, width='stretch')
         from cvti.batches import csv_export
         st.download_button('Download collection CSV', csv_export(entries), file_name='collection.csv', mime='text/csv')
+        st.subheader('Search saved structures')
+        st.caption('Search this project or one collection using a SMILES structure. Results are read-only.')
+        with st.form('collection_structure_search'):
+            scope = st.selectbox('Search scope', [None] + [c['id'] for c in collections],
+                                 format_func=lambda value: 'All project collections' if value is None else
+                                 next(c['name'] for c in collections if c['id'] == value))
+            query_smiles = st.text_input('Search SMILES')
+            search_mode = st.selectbox('Structure match', ['similarity', 'substructure', 'exact'],
+                                       format_func=lambda value: value.capitalize())
+            minimum = st.slider('Minimum Tanimoto similarity', 0.0, 1.0, 0.5, 0.05,
+                                help='Used only for similarity search; structural resemblance is not biological activity.')
+            if st.form_submit_button('Search structures'):
+                st.session_state.pop('collection_search_result', None)
+                if query_smiles.strip():
+                    params = {'project_id': project_id, 'smiles': query_smiles.strip(),
+                              'mode': search_mode, 'min_similarity': minimum, 'limit': 500}
+                    if scope is not None:
+                        params['collection_id'] = scope
+                    st.session_state['collection_search_result'] = call('GET', '/collections/search', params=params)
+                else:
+                    st.error('Enter a SMILES query to search saved structures.')
+        result = st.session_state.get('collection_search_result')
+        if result and result['project_id'] == project_id:
+            st.caption(f"{result['total_hits']} matches across {result['searched']} saved entries · "
+                       f"showing {result['returned']} (maximum 500)")
+            if result['skipped_invalid_structures']:
+                st.warning(f"{result['skipped_invalid_structures']} saved entries had invalid structures and were skipped.")
+            st.dataframe(result['items'], hide_index=True, width='stretch')
+            if result['items']:
+                st.download_button('Download search results CSV', csv_export(result['items']),
+                                   file_name='structure-search.csv', mime='text/csv')
+            st.caption(result['notice'])
     st.subheader('Saved predictions')
     options = [None] + [run['id'] for run in runs]
     selected = st.selectbox('Filter history by experiment', options, format_func=lambda v: 'All experiments' if v is None else f'Experiment {v}')
