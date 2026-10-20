@@ -13,6 +13,40 @@ cvti start
 
 `cvti doctor` does not upgrade the schema, load fixtures or save predictions. It reports schema revision, missing/corrupt artifacts and server status. Old models whose hashes were never recorded are labelled legacy-unverified; do not invent missing training history. Run `cvti db upgrade` with servers stopped if an upgrade is needed.
 
+### Windows startup lock error
+
+If `cvti start` exits with `msvcrt.locking` / `PermissionError: [Errno 13]`
+and then says the workspace is in use, update to the Windows shared-lock fix.
+The earlier CRT lock treated API and worker access as exclusive, causing them to
+block each other. The fix uses Windows `LockFileEx` shared locks while retaining
+exclusive maintenance and single-worker locks. Do not delete lock files or disable
+locking to work around this error.
+
+After updating, restart from PowerShell in the project directory:
+
+```powershell
+.\.venv\Scripts\python.exe -m cvti.cli start
+```
+
+Keep that window open, then visit `http://127.0.0.1:8501/` on the same PC.
+
+Until the fix is installed, you can run the API and dashboard separately without
+starting a CSV worker. In one PowerShell window in the project directory:
+
+```powershell
+.\.venv\Scripts\python.exe -m uvicorn cvti.api:app --host 127.0.0.1 --port 8000
+```
+
+In a second PowerShell window in the same directory:
+
+```powershell
+$env:API_URL = 'http://127.0.0.1:8000'
+.\.venv\Scripts\python.exe -m streamlit run dashboard.py --server.address 127.0.0.1 --server.port 8501
+```
+
+Keep both windows open. CSV batch jobs will remain queued until a worker runs;
+do not start one alongside the old API before installing the shared-lock fix.
+
 ## Back up
 
 Stop API, dashboard and all writers first. Do not use backup concurrently with an old version of the API or external database clients. New API and CLI writers cooperate through a process lock; this cannot detect unrelated applications or another computer writing PostgreSQL.
