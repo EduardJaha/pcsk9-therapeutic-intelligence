@@ -10,6 +10,12 @@ from cvti.db import make_engine, session_factory
 from cvti.provenance import create_version
 
 
+def select_page(app, page):
+    next(radio for radio in app.sidebar.radio if page in radio.options).set_value(page).run(timeout=20)
+    assert [radio.value for radio in app.sidebar.radio if radio.value is not None] == [page]
+    assert app.query_params["view"] == page
+
+
 @pytest.fixture(autouse=True)
 def disable_local_assistant(monkeypatch, tmp_path):
     from cvti import assistant
@@ -49,7 +55,7 @@ def test_workbench_navigation_and_read_only_previews(tmp_path, monkeypatch):
         app = AppTest.from_file(str(Path(__file__).parents[1] / "dashboard.py")).run(timeout=20)
         assert not app.exception and not app.error
         for page in ["Compound registry", "Candidate workbench", "Assay records", "Research assistant", "Compare molecules", "Molecule profile", "Assay review", "Models & reports", "Datasets & evidence", "Projects & history", "Batch processing"]:
-            app.radio[0].set_value(page).run(timeout=20)
+            select_page(app, page)
             assert not app.exception and not app.error, page
             if page == "Compare molecules":
                 assert app.text_area[0].value == ""
@@ -94,7 +100,7 @@ def test_empty_workspace_and_completed_batch_views(tmp_path, monkeypatch):
         assert not app.exception and not app.error
         for page in ['Compound registry', 'Candidate workbench', 'Assay records', 'Research assistant', 'Molecule profile', 'Compare molecules', 'Assay review', 'Models & reports',
                      'Datasets & evidence', 'Projects & history', 'Batch processing']:
-            app.radio[0].set_value(page).run(timeout=20)
+            select_page(app, page)
             assert not app.exception and not app.error, page
             if page == 'Molecule profile':
                 assert next(field for field in app.text_input if field.label == 'SMILES').value == ''
@@ -104,7 +110,7 @@ def test_empty_workspace_and_completed_batch_views(tmp_path, monkeypatch):
                 assert 'comparison_result' not in app.session_state
         job = api.post('/batch-jobs', json={'csv_content': 'smiles\nOc1ccccc1\ninvalid', 'smiles_column': 'smiles'}).json()
         process_next(session_factory(make_engine(url)))
-        app.radio[0].set_value('Batch processing').run(timeout=20)
+        select_page(app, 'Batch processing')
         assert not app.exception and not app.error
         assert api.get(f'/batch-jobs/{job["id"]}').json()['status'] == 'completed'
         assert api.get('/summary').json()['measurements'] == 0
@@ -125,7 +131,7 @@ def test_collection_search_in_dashboard_does_not_write_research_records(tmp_path
         monkeypatch.setattr(httpx, 'Client', LocalAPI)
         monkeypatch.delenv('API_URL', raising=False)
         app = AppTest.from_file(str(Path(__file__).parents[1] / 'dashboard.py')).run(timeout=20)
-        app.radio[0].set_value('Projects & history').run(timeout=20)
+        select_page(app, 'Projects & history')
         next(field for field in app.text_input if field.label == 'Search SMILES').set_value('c1ccccc1O')
         next(button for button in app.button if button.label == 'Search structures').click().run(timeout=20)
         assert not app.exception and not app.error, [item.value for item in app.error]
@@ -160,7 +166,7 @@ def test_registry_materials_assay_records_and_candidate_views_in_dashboard(tmp_p
             next(item for item in app.button if item.label == label).click().run(timeout=20)
             assert not app.exception and not app.error, [item.value for item in app.error]
 
-        app.radio[0].set_value('Compound registry').run(timeout=20)
+        select_page(app, 'Compound registry')
         assert field('Registry SMILES').value == ''
         field('Registry SMILES').set_value('Oc1ccccc1')
         field('Compound name (optional)').set_value('UI test compound')
@@ -180,14 +186,14 @@ def test_registry_materials_assay_records_and_candidate_views_in_dashboard(tmp_p
             'source_reference': 'Synthetic test protocol'}).json()
         api.post('/registry/runs', json={'protocol_id': protocol['id'], 'name': 'UI run', 'performed_on': '2026-10-10',
             'operator': 'Test operator', 'data_origin': 'synthetic', 'source_reference': 'Synthetic test run'})
-        app.radio[0].set_value('Assay records').run(timeout=20)
+        select_page(app, 'Assay records')
         field('Source result identifier').set_value('UI result 1')
         field('Original numeric value').set_value('2.500')
         field('Observation source reference').set_value('Synthetic test row')
         click('Record observation')
         recorded = api.get('/registry/observations').json()['items']
         assert len(recorded) == 1 and recorded[0]['sample_id'] == sample['id'] and recorded[0]['value_text'] == '2.500'
-        app.radio[0].set_value('Candidate workbench').run(timeout=20)
+        select_page(app, 'Candidate workbench')
         assert app.session_state['candidate_result']['total_hits'] == 1
         field('New candidate view name').set_value('UI saved view')
         click('Save applied candidate view')
@@ -235,14 +241,14 @@ def test_browser_refresh_restores_molecules_without_repeating_requests(tmp_path,
             next(button for button in app.button if button.label == label).click().run(timeout=20)
 
         app = AppTest.from_file(dashboard).run(timeout=20)
-        app.radio[0].set_value('Molecule profile').run(timeout=20)
+        select_page(app, 'Molecule profile')
         app.text_input[0].set_value('Oc1ccccc1')
         click(app, 'Build molecule profile')
         click(app, 'Save prediction')
         profile = app.session_state['molecule_profile']
         prediction = app.session_state['profile_prediction']
         app = refresh(app)
-        assert app.radio[0].value == 'Molecule profile'
+        assert app.session_state["workspace_nav"] == 'Molecule profile'
         assert app.text_input[0].value == 'Oc1ccccc1'
         assert app.session_state['molecule_profile'] == profile
         assert app.session_state['profile_prediction'] == prediction
@@ -251,7 +257,7 @@ def test_browser_refresh_restores_molecules_without_repeating_requests(tmp_path,
 
         # Structures-only is an explicit selection, even when models exist.
         next(box for box in app.selectbox if box.label == 'Scoring model').set_value(None).run(timeout=20)
-        app.radio[0].set_value('Compare molecules').run(timeout=20)
+        select_page(app, 'Compare molecules')
         app.text_area[0].set_value('Oc1ccccc1\nCc1ccccc1')
         click(app, 'Compare molecules')
         comparison = app.session_state['comparison_result']
@@ -259,7 +265,7 @@ def test_browser_refresh_restores_molecules_without_repeating_requests(tmp_path,
         assert app.text_area[0].value == 'Oc1ccccc1\nCc1ccccc1'
         assert app.session_state['comparison_result'] == comparison
         assert app.session_state['scoring_model'] is None
-        app.radio[0].set_value('Molecule profile').run(timeout=20)
+        select_page(app, 'Molecule profile')
         assert app.text_input[0].value == 'Oc1ccccc1'
 
         project = api.post('/projects', json={'name': 'Other project'}).json()
@@ -282,7 +288,7 @@ def test_browser_refresh_restores_molecules_without_repeating_requests(tmp_path,
         app = refresh(app)
         assert 'molecule_profile' not in app.session_state
         assert 'profile_prediction' not in app.session_state
-        app.radio[0].set_value('Compare molecules').run(timeout=20)
+        select_page(app, 'Compare molecules')
         app.text_area[0].set_value('invalid smiles')
         click(app, 'Compare molecules')
         app = refresh(app)
@@ -290,7 +296,7 @@ def test_browser_refresh_restores_molecules_without_repeating_requests(tmp_path,
 
         # A URL with no workspace identifier never inherits another tab's data.
         fresh = AppTest.from_file(dashboard).run(timeout=20)
-        fresh.radio[0].set_value('Molecule profile').run(timeout=20)
+        select_page(fresh, 'Molecule profile')
         assert fresh.text_input[0].value == ''
         assert 'molecule_profile' not in fresh.session_state
         assert fresh.query_params['workspace'] != app.query_params['workspace']

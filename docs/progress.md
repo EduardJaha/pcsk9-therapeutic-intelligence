@@ -1,6 +1,58 @@
 # Roadmap progress — local release 0.2
 
-Updated 2026-10-18. Task definitions: [approved roadmap](roadmap.md). User decisions: **no qualified reviewer yet; keep this release local with no hosting cost**. These decisions gate real-data approval and hosted/commercial work. Software acceptance and scientific evidence are reported separately.
+Updated 2026-10-22. Task definitions: [approved roadmap](roadmap.md). User decisions: **no qualified reviewer yet; keep this release local with no hosting cost**. These decisions gate real-data approval and hosted/commercial work. Software acceptance and scientific evidence are reported separately.
+
+## KMed-informed discovery workbench — 22 October 2026
+
+Implemented on `codex/integrated-discovery-workbench`. See the
+[discovery guide](discovery-workbench.md) for setup, endpoint contracts, use and
+scientific limits.
+
+- Sidebar pages are organized under Workspace, Compounds, Predictions & design,
+  Assays & evidence, and Models & processing. One current-page highlight is
+  preserved across groups, bookmarked links, refresh recovery and molecule
+  handoffs. Follow-up verification: all 18 dashboard/discovery tests passed;
+  the running browser was checked for grouped navigation and active selection.
+- Rich molecule dossier with 13 RDKit properties, PAINS/BRENK flags, rule checks,
+  deterministic ETKDG/MMFF conformers, an offline interactive viewer and SDF.
+- Nine experimental ADMET-AI endpoint contracts; immutable release manifests;
+  local queued inference with checkpoint/version/identity/range checks. No
+  synthetic fallback, calibrated-confidence claim or clinical composite score.
+- Public target dossiers preserving original responses/hashes; local Vina jobs
+  with prepared receptor inputs, target/pocket rationale, reproducible settings,
+  ligand preparation, engine/executable hashes and downloadable poses.
+- Dose-response fitting with explicit units, retained replicates and quality
+  warnings; plate QC; strict same-assay activity-cliff analysis; structural
+  screening and transparent analog proposals with a diversity shortlist.
+- Seven new pages and shared worker integration. Saved scientific runs are
+  project-scoped and checksummed. Failed/interrupted runs require explicit retry,
+  which creates a linked new run and preserves the previous failure.
+- Optional environment installed locally under ignored `data/runtime/discovery`:
+  ADMET-AI 2.0.1, Meeko 0.8.0 and transitive versions recorded in
+  `requirements-discovery.lock`. Official macOS arm64 Vina 1.2.7 installed under
+  `data/runtime/vina`. Weights and runtime artifacts are not tracked in Git.
+- **Verification: 94 passed, 4 skipped** in the full offline suite; PostgreSQL
+  tests skipped because `TEST_DATABASE_URL` was not configured. Existing SQLite
+  preservation/schema/backup tests and new project isolation, output rejection,
+  provenance, curve units, SAR compatibility and page navigation tests passed.
+  `git diff --check` passed.
+- Real integration checks, separate from the offline suite: ADMET inference on
+  public aspirin returned all nine selected endpoints through the browser and
+  worker; Vina returned three poses against the upstream 1IEP tutorial receptor;
+  Open Targets PCSK9 and RCSB 6U26 retrieval succeeded. These are integration
+  checks, not independent scientific benchmarks. Browser inspection covered the
+  dossier, 3D rendering, navigation and completed endpoint result display in an
+  isolated verification database.
+- Before upgrading the user's workspace, created and verified
+  `data/backups/pre-discovery-2026-10-22.zip`. Applied the additive
+  `f51d7a64b208` migration and verified identical row counts in all 19 pre-existing
+  tables. No example compounds, assays, predictions or scientific test runs were
+  inserted into the user's workspace. Registered the installed model as an
+  experimental local release and started API/dashboard/worker locally.
+- Independent ADMET validation, endpoint-specific training overlap, calibrated
+  uncertainty, PCSK9 receptor/pocket validation, measured feedback learning,
+  PBPK, Boltz/FEP, binder and virtual-cell models remain unestablished. Existing
+  assay-review and D5 training gates remain intact.
 
 ## Integrated registry and research workflow — 18 October 2026
 
