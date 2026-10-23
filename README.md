@@ -23,6 +23,14 @@ See the [approved implementation roadmap](docs/roadmap.md), [verified progress](
 
 ## Research workbench
 
+The [integrated discovery workbench](docs/discovery-workbench.md) adds a rich
+molecule dossier and offline 3D viewer, nine experimental pretrained ADMET
+endpoints, public target dossiers, local Vina docking, dose-response/plate
+analysis, same-assay SAR, analog proposals and checksummed scientific run
+history. Optional model/physics dependencies live in an isolated local
+environment. Start with **Molecule dossier**; use the guide to configure models
+and the local worker. Software operation does not establish scientific accuracy.
+
 The optional [local pretrained research assistant](docs/pretrained-assistant.md)
 summarizes explicitly selected dataset/report excerpts or pasted source text,
 with supporting quotes, source hashes and model identity. Open **Research assistant**
@@ -41,11 +49,30 @@ additive database migration; no registry examples are loaded automatically.
 
 For a guided first session, follow the [step-by-step tutorial](docs/tutorial.md). Start with structure profiles and comparisons without adding data; load the synthetic demonstration only when you choose to.
 
-The Streamlit interface uses a sidebar workspace, molecular structure cards and interactive charts. Open `http://127.0.0.1:8501/` and choose a page:
+The Streamlit interface uses a sidebar workspace, molecular structure cards and interactive charts. Open `http://127.0.0.1:8501/`. Pages are grouped by use:
+
+| Sidebar group | Pages |
+|---|---|
+| Workspace | Overview, Projects & history, Research assistant |
+| Compounds | Compound registry, Molecule dossier, Molecule profile, Compare molecules |
+| Predictions & design | Endpoint predictions, Target biology, Structure & docking, SAR & design, Candidate workbench |
+| Assays & evidence | Assay records, Assay analysis, Assay review, Datasets & evidence |
+| Models & processing | Models & reports, Research runs, Batch processing |
+
+Click a page under its heading; the current page is highlighted. Project and scoring-model selectors remain available across all groups. Bookmarked page links and workspace recovery still select the matching page.
+
+Each page provides the following tools:
 
 | Page | What it does |
 |---|---|
 | Overview | Shows research readiness, saved experiment counts, scaffold evaluation and a preview of stored molecules. |
+| Molecule dossier | Rich calculated profile, chemical alerts, local 3D conformer/SDF and links into prediction/docking/design. |
+| Endpoint predictions | Queues a pinned local experimental ADMET-AI release, with per-endpoint units and explicit evidence limits. |
+| Target biology | Retrieves public Open Targets context and optional RCSB metadata with preserved source responses. |
+| Structure & docking | Runs local Vina against an explicitly prepared receptor/grid and preserves input settings and poses. |
+| Assay analysis | Fits concentration-response curves with units and quality flags; calculates plate Z-prime. |
+| SAR & design | Screens structures, identifies same-assay activity cliffs and enumerates transparent analog hypotheses. |
+| Research runs | Shows saved analyses and scientific jobs, provenance, downloads and explicit retries. |
 | Compound registry | Registers sourced compound identities, validates CSV imports before saving, and links material batches and samples. |
 | Candidate workbench | Filters registered structures and properties, reruns saved views, inspects raw assay evidence and previews selected model hypotheses. |
 | Assay records | Preserves protocol/run/sample context, original values and units, source references and observation corrections. |
@@ -72,7 +99,7 @@ opaque identifier appears in the URL, not molecular structures. If local storage
 cannot be read or written, the app shows a recovery warning. Saved predictions
 remain available in **Projects & history**.
 
-Structure cards report molecular weight, calculated logP and polar surface area; profiles also show hydrogen-bond donors, acceptors and rotatable bonds. These are calculated descriptors, not measured ADMET endpoints or desirability rankings. The interface currently supports the exploratory PCSK9 IC50 classifier; docking, ADMET endpoint models and calibrated uncertainty have not been established. Fingerprint PCA is fitted to the compared molecules only, so its axes and distances change when the comparison set changes. It is a structural visualization, not an applicability-domain validation.
+The original structure cards report molecular weight, calculated logP and polar surface area; profiles also show hydrogen-bond donors, acceptors and rotatable bonds. These are calculated descriptors, not measured ADMET endpoints or desirability rankings. The exploratory PCSK9 IC50 classifier remains separate from the new optional ADMET and docking workflows. Their scientific accuracy and calibrated uncertainty have not been established in this workspace. Fingerprint PCA is fitted to the compared molecules only, so its axes and distances change when the comparison set changes. It is a structural visualization, not an applicability-domain validation.
 
 In **Projects & history**, create a collection and add molecules, then search all collections in the selected project or one collection by SMILES. Exact search compares standardized structures; substructure search matches the entered SMILES graph with chirality considered; similarity search ranks Morgan radius-2, 2048-bit fingerprint Tanimoto scores. Results retain collection/entry IDs and notes. The table shows at most 500 hits and **Download search results CSV** exports those displayed hits. A search is read-only and does not create evidence, predictions or measurements. It examines up to 10,000 saved entries per request; select one collection if the scope is larger. Similarity is structural resemblance, not biological activity, calibrated confidence or a validated applicability domain. The API endpoint is `GET /collections/search?project_id=1&smiles=Oc1ccccc1&mode=similarity&min_similarity=0.5`; `mode` can also be `exact` or `substructure`, and optional `collection_id` narrows the scope.
 

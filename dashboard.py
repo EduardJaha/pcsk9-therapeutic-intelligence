@@ -12,11 +12,19 @@ import streamlit as st
 from cvti.dashboard_ui import COLORS, apply_style, hero, molecule_card, pill, stat, validation_chart
 from cvti.dashboard_state import MOLECULE_KEYS, WorkspaceStore, workspace_token
 from cvti.reports import render_assay_review_csv, render_experiment_report
+from cvti.discovery_ui import PAGES as DISCOVERY_PAGES, page as discovery_page
 
 
 API = os.getenv("API_URL", "http://127.0.0.1:8000").rstrip("/")
 API_REFERENCE_URL = os.getenv("API_REFERENCE_URL", f"{API}/docs")
-PAGES = ["Overview", "Compound registry", "Candidate workbench", "Assay records", "Research assistant", "Molecule profile", "Compare molecules", "Assay review", "Models & reports", "Datasets & evidence", "Projects & history", "Batch processing"]
+PAGE_GROUPS = {
+    "Workspace": ["Overview", "Projects & history", "Research assistant"],
+    "Compounds": ["Compound registry", "Molecule dossier", "Molecule profile", "Compare molecules"],
+    "Predictions & design": ["Endpoint predictions", "Target biology", "Structure & docking", "SAR & design", "Candidate workbench"],
+    "Assays & evidence": ["Assay records", "Assay analysis", "Assay review", "Datasets & evidence"],
+    "Models & processing": ["Models & reports", "Research runs", "Batch processing"],
+}
+PAGES = [page for pages in PAGE_GROUPS.values() for page in pages]
 PROPERTIES = {
     "Molecular weight · g/mol": "molecular_weight", "Calculated logP": "logp",
     "Polar surface area · Å²": "tpsa", "H-bond donors": "h_bond_donors",
@@ -41,6 +49,9 @@ if "workspace_token" not in st.session_state:
 
 
 def clear_molecule_workspace():
+    for key in list(st.session_state):
+        if key.startswith('discovery_'):
+            st.session_state.pop(key, None)
     for key in MOLECULE_KEYS:
         st.session_state.pop(key, None)
     st.session_state.pop('collection_search_result', None)
@@ -103,11 +114,11 @@ def overview(summary, runs, versions):
          "Bring molecular structures, assay evidence and model evaluation into one traceable research workflow.",
          ["PCSK9–LDLR endpoint", "RDKit chemistry", "Scaffold evaluation", "Research use only"])
     with st.expander("First session · guided checklist", expanded=not runs):
-        st.write("1. Open Molecule profile and build a structure profile.")
-        st.write("2. Compare two or more molecules with Structures only selected.")
-        st.write("3. Optionally load the offline demo and train in Models & reports.")
-        st.write("4. Select a Demo model, preview a score, and save only if wanted.")
-        st.write("5. Export the experiment report from Models & reports.")
+        st.write("1. Open Molecule dossier to inspect a structure and generate a local 3D conformer.")
+        st.write("2. Use Endpoint predictions for a configured local ADMET model, or compare structures without a model.")
+        st.write("3. Explore public Target biology and prepare a receptor for Structure & docking.")
+        st.write("4. Analyze compatible assay observations in Assay analysis and SAR & design.")
+        st.write("5. Save analyses explicitly and inspect provenance, jobs and exports in Research runs.")
         st.caption("Synthetic data is invented. Unreviewed data cannot train. Reviewed data still requires scientific evaluation.")
     version, assays = review_rows(versions)
     latest = runs[0] if runs else None
@@ -789,12 +800,24 @@ with st.sidebar:
                               on_change=clear_molecule_workspace,
                               format_func=lambda value: next(p['name'] for p in projects if p['id'] == value))
     runs = [run for run in runs if run.get('project_id', 1) == project_id]
-    st.markdown('<div class="nav-caption">WORKSPACE</div>', unsafe_allow_html=True)
     initial_page = st.query_params.get("view", "Overview")
     st.session_state.setdefault("workspace_nav", initial_page if initial_page in PAGES else "Overview")
-    def update_view():
-        st.query_params["view"] = st.session_state["workspace_nav"]
-    page = st.radio("Workspace", PAGES, label_visibility="collapsed", key="workspace_nav", on_change=update_view)
+    if st.session_state["workspace_nav"] not in PAGES:
+        st.session_state["workspace_nav"] = "Overview"
+    def update_view(group_key):
+        selected = st.session_state[group_key]
+        if selected in PAGES:
+            st.session_state["workspace_nav"] = selected
+            st.query_params["view"] = selected
+    page = st.session_state["workspace_nav"]
+    for group, group_pages in PAGE_GROUPS.items():
+        st.markdown(f'<div class="nav-caption">{escape(group.upper())}</div>', unsafe_allow_html=True)
+        group_key = f"navigation_{group}"
+        # One canonical page survives refresh and molecule handoffs. Other
+        # groups have no selection, so the sidebar highlights only that page.
+        st.session_state[group_key] = page if page in group_pages else None
+        st.radio(group, group_pages, index=None, label_visibility="collapsed",
+                 key=group_key, on_change=update_view, args=(group_key,))
     st.query_params["view"] = page
     st.divider()
     st.markdown('<div class="nav-caption">SCORING MODEL</div>', unsafe_allow_html=True)
@@ -816,7 +839,7 @@ with st.sidebar:
         st.rerun()
 st.markdown(f'<div class="topbar"><div class="breadcrumb">Research workspace /<strong>{escape(page)}</strong></div>'
             f'<div class="topbadges">{pill("API connected" if connected else "API offline", "green" if connected else "rose")}'
-            f'{pill("PCSK9 · 1 model endpoint")}{pill("Local research", "purple")}</div></div>', unsafe_allow_html=True)
+            f'{pill("Molecular research tools")}{pill("Local research", "purple")}</div></div>', unsafe_allow_html=True)
 if notice := st.session_state.pop("workspace_notice", None):
     st.toast(notice)
 if not connected:
@@ -824,6 +847,8 @@ if not connected:
     st.stop()
 if page == "Overview":
     overview(summary or {}, runs, versions)
+elif page in DISCOVERY_PAGES:
+    discovery_page(page, project_id, call)
 elif page == 'Research assistant':
     assistant_page(project_id, runs, versions)
 elif page == "Molecule profile":

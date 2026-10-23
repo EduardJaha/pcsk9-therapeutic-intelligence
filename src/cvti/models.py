@@ -284,3 +284,28 @@ class ResearchView(Base):
     criteria_json: Mapped[dict] = mapped_column(JSON)
     criteria_sha256: Mapped[str] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class DiscoveryModel(Base):
+    __tablename__ = 'discovery_models'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    manifest_sha256: Mapped[str] = mapped_column(String(64), unique=True)
+    manifest_json: Mapped[dict] = mapped_column(JSON)
+
+
+class DiscoveryRun(Base):
+    __tablename__ = 'discovery_runs'
+    __table_args__ = (Index('ix_discovery_project_created', 'project_id', 'created_at'),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey('projects.id'))
+    model_id: Mapped[int | None] = mapped_column(ForeignKey('discovery_models.id'), nullable=True)
+    kind: Mapped[str] = mapped_column(String(40))
+    status: Mapped[str] = mapped_column(String(20))
+    input_json: Mapped[dict] = mapped_column(JSON)
+    input_sha256: Mapped[str] = mapped_column(String(64))
+    result_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    result_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

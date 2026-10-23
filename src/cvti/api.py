@@ -272,6 +272,8 @@ def create_app(database_url: str | None = None, artifact_dir: str | None = None)
     app.include_router(assistant_router(factory))
     from cvti.registry_api import router as registry_router
     app.include_router(registry_router(factory))
+    from cvti.discovery_api import router as discovery_router
+    app.include_router(discovery_router(factory))
     return app
 
 

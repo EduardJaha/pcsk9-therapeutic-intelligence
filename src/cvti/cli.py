@@ -157,14 +157,19 @@ def main():
             if args.command == 'worker':
                 import time
                 from cvti.batches import process_next, recover_jobs
+                from cvti.discovery_jobs import process_next as process_scientific, recover_jobs as recover_scientific
                 factory = session_factory(engine)
                 with workspace_lock(settings.database_url, settings.artifact_dir, name='.cvti-worker.lock'):
                     recover_jobs(factory)
+                    recover_scientific(factory)
                     try:
                         while True:
                             identifier = process_next(factory)
                             if identifier is not None:
                                 print(json.dumps({'processed_job': identifier}), flush=True)
+                            scientific_id = process_scientific(factory)
+                            if scientific_id is not None:
+                                print(json.dumps({'processed_scientific_run': scientific_id}), flush=True)
                             if args.once:
                                 break
                             time.sleep(1)

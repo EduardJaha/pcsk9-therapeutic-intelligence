@@ -178,3 +178,28 @@ These additions extend U2–U4 without satisfying D5 or scientific model gates:
 No new predictor architecture, pretrained checkpoint, external inference,
 generative engine, synthesis planner or infrastructure is implied by these tasks.
 Those need a concrete scientific use case, compatible data and their own gates.
+
+## KMed-informed discovery workbench — 22 October 2026
+
+The user authorized implementation of the practical recommendations from the
+KMed comparison. The [discovery workbench guide](discovery-workbench.md) defines
+the delivered scope and exact limitations:
+
+- **K1:** Rich molecule dossier, chemistry alerts, local conformer viewer/SDF,
+  structural screening and explicit navigation between molecule workflows.
+- **K2:** Nine typed ADMET endpoints; optional pinned local pretrained inference;
+  immutable model manifests, checksum and identity checks, explicit unknown
+  applicability/calibration/overlap. Experimental release only.
+- **K3:** Explicit public target context and raw source snapshots; prepared
+  receptor Vina jobs with provenance, settings, poses and local visualization.
+- **K4:** Unit-aware dose-response analysis, plate QC, compatible same-assay SAR,
+  transparent analog enumeration and diversity selection.
+- **K5:** Additive scientific run history, durable worker jobs, checksums,
+  failure/interruption handling and explicit new-run retry.
+
+These software tasks do not satisfy D5 or validate any PCSK9 or ADMET predictor.
+Independent endpoint evaluation and PCSK9-specific redocking remain required
+before making scientific performance claims. Full matched molecular pairs,
+feedback-trained active learning, PBPK, Boltz, free energy, binder design and
+virtual-cell modeling remain separate evaluated extensions; no heuristic
+placeholder is labeled as one of those capabilities.

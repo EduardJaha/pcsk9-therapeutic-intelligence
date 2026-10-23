@@ -49,6 +49,7 @@ def init_db(engine):
                         "collections", "collection_molecules", "batch_jobs", "registered_compounds",
                         "compound_batches", "material_samples", "assay_protocols", "assay_runs",
                         "assay_observations", "registration_imports", "research_views",
+                        "discovery_models", "discovery_runs",
                     }
                 if change[0] == "add_column":
                     return change[2] in {"experiments", "predictions"} and change[3].name in {"dataset_version_id", "provenance_json", "artifact_sha256", "protocol_id", "project_id"}

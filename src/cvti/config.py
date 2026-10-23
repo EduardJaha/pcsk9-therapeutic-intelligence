@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     batch_max_rows: int = Field(default=1000, ge=1, le=10000)
     assistant_base_url: str = "http://127.0.0.1:11434"
     assistant_model: str = ""
+    discovery_python: str = './data/runtime/discovery/bin/python'
+    admet_manifest: str = './data/models/admet-manifest.json'
+    vina_executable: str = './data/runtime/vina'
+    discovery_timeout_seconds: int = Field(default=600, ge=10, le=3600)
     assistant_timeout_seconds: float = Field(default=45, gt=0, le=50)
 
     @field_validator("assistant_base_url")
