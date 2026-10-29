@@ -1,6 +1,7 @@
 """Checksummed workspace archives; model artifacts are never deserialized here."""
 import hashlib
 import json
+from contextlib import closing
 import os
 from pathlib import Path, PurePosixPath
 import shutil
@@ -106,20 +107,28 @@ def create_backup(database_url, artifact_dir, output, *, services_stopped=False)
                 if url.database in {None, ':memory:'}:
                     raise ValueError('Backup needs a file-backed SQLite database')
                 database_file = 'database.sqlite'
-                with sqlite3.connect(str(Path(url.database).resolve())) as source, sqlite3.connect(stage / database_file) as dest:
-                    source.backup(dest)
+                # sqlite3's own context manager commits/rolls back but does not
+                # close handles. Windows cannot clean up the snapshot while open.
+                with closing(sqlite3.connect(str(Path(url.database).resolve()))) as source, closing(sqlite3.connect(stage / database_file)) as dest:
+                    with dest:
+                        source.backup(dest)
             else:
                 database_file = 'database.dump'
                 _pg('pg_dump', database_url, '--format=custom', '--no-owner', '--no-privileges', '--file', str(stage / database_file))
             source_dir = Path(url.database).resolve().parent if url.get_backend_name() == 'sqlite' else Path(artifact_dir).resolve().parent
             # Retained inputs/exports, never .env, arbitrary sibling files or old archives.
-            for path in source_dir.rglob('*'):
-                if path.is_file() and not path.is_symlink() and path.suffix.lower() in {'.json', '.csv', '.md'}:
-                    if any(p.startswith('.') for p in path.relative_to(source_dir).parts):
-                        continue
-                    destination = stage / 'sources' / path.relative_to(source_dir)
-                    destination.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copy2(path, destination)
+            runtime_directories = {'runtime', 'ollama', 'assistant-training', 'workspaces', 'backups'}
+            for directory, folders, names in os.walk(source_dir, followlinks=False):
+                current = Path(directory)
+                folders[:] = [name for name in folders if not name.startswith('.')
+                              and not (current / name).is_symlink()
+                              and not (current == source_dir and name in runtime_directories)]
+                for name in names:
+                    path = current / name
+                    if not name.startswith('.') and not path.is_symlink() and path.suffix.lower() in {'.json', '.csv', '.md'}:
+                        destination = stage / 'sources' / path.relative_to(source_dir)
+                        destination.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(path, destination)
             manifest = {'format_version': 1, 'created_at': datetime.now(timezone.utc).isoformat(),
                         'application_version': version('cvti-mvp'), 'schema_revision': revision,
                         'backend': url.get_backend_name(), 'database_file': database_file,

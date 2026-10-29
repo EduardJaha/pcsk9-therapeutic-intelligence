@@ -15,7 +15,7 @@ Open Targets GraphQL ┘                            │
                                                  └─ FastAPI ─ Streamlit dashboard
 ```
 
-This is one application package (`src/cvti`), one database, and local model artifacts. Docker Compose can run PostgreSQL alone or the full API and dashboard stack. There are no cloud GPUs, queues, Kubernetes components, or LLM training jobs.
+This is one application package (`src/cvti`), one database, and local model artifacts. Docker Compose can run PostgreSQL alone or the full API and dashboard stack. There are no cloud GPUs, queues or Kubernetes components. Optional [local assistant fine-tuning](docs/local-assistant-training.md) runs separately from the application and molecular prediction models.
 
 ## Roadmap and local operations
 
@@ -37,6 +37,8 @@ with supporting quotes, source hashes and model identity. Open **Research assist
 to preview evidence; configure a local Ollama model to generate a research draft.
 This is a language-model integration, not a new molecular predictor or scientific
 approval. Inference is disabled until a local model is configured.
+See the [broader assistant evaluation](docs/assistant-evaluation.md) for the
+frozen evidence-handling protocol and the limits of generated training examples.
 
 Version 0.2 adds [source/review audits, baseline comparisons, projects, history and durable CSV jobs](docs/research-workflow.md). A [market workflow review](docs/market-workflow-review.md) informed read-only exact, substructure and similarity search over saved collections. Run `cvti doctor` for diagnostics or `cvti start` to launch the API, dashboard and one local worker together.
 
