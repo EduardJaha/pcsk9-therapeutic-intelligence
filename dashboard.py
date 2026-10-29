@@ -25,6 +25,22 @@ PAGE_GROUPS = {
     "Models & processing": ["Models & reports", "Research runs", "Batch processing"],
 }
 PAGES = [page for pages in PAGE_GROUPS.values() for page in pages]
+PAGE_ICONS = {
+    "Overview": "home", "Projects & history": "folder_open", "Research assistant": "chat",
+    "Compound registry": "inventory_2", "Molecule dossier": "description",
+    "Molecule profile": "science", "Compare molecules": "compare_arrows",
+    "Endpoint predictions": "online_prediction", "Target biology": "biotech",
+    "Structure & docking": "view_in_ar", "SAR & design": "hub", "Candidate workbench": "filter_alt",
+    "Literature evidence": "menu_book", "Assay records": "assignment",
+    "Assay analysis": "query_stats", "Assay review": "fact_check", "Datasets & evidence": "dataset",
+    "Models & reports": "analytics", "Research runs": "history", "Batch processing": "layers",
+}
+
+
+def navigation_label(page):
+    return f":material/{PAGE_ICONS[page]}: {page}"
+
+
 PROPERTIES = {
     "Molecular weight · g/mol": "molecular_weight", "Calculated logP": "logp",
     "Polar surface area · Å²": "tpsa", "H-bond donors": "h_bond_donors",
@@ -809,8 +825,7 @@ with st.container(key="studio_header"):
     brand_column, navigation_column = st.columns([1, 3], vertical_alignment="center")
     with brand_column:
         st.markdown('<div class="brand"><div class="brand-mark">P9</div><div>'
-                    '<div class="brand-name">PCSK9 Lab</div>'
-                    '<div class="brand-caption">Graphite Studio</div></div></div>', unsafe_allow_html=True)
+                    '<div class="brand-name">PCSK9 Lab</div></div></div>', unsafe_allow_html=True)
     with navigation_column:
         st.pills("Quick navigation", quick_pages, selection_mode="single", key="studio_quick_nav",
                  on_change=update_view, args=("studio_quick_nav",), label_visibility="collapsed", wrap=True)
@@ -835,7 +850,7 @@ with st.sidebar:
         # groups have no selection, so the sidebar highlights only that page.
         st.session_state[group_key] = page if page in group_pages else None
         st.radio(group, group_pages, index=None, label_visibility="collapsed",
-                 key=group_key, on_change=update_view, args=(group_key,))
+                 format_func=navigation_label, key=group_key, on_change=update_view, args=(group_key,))
     st.query_params["view"] = page
     st.divider()
     st.markdown('<div class="nav-caption">SCORING MODEL</div>', unsafe_allow_html=True)

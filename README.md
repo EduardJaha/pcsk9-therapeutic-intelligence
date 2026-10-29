@@ -57,7 +57,7 @@ additive database migration; no registry examples are loaded automatically.
 
 For a guided first session, follow the [step-by-step tutorial](docs/tutorial.md). Start with structure profiles and comparisons without adding data; load the synthetic demonstration only when you choose to.
 
-The Streamlit interface uses **Graphite Studio**: compact navigation, mint accents,
+The Streamlit interface uses compact navigation with page icons, mint accents,
 split structure input/preview, molecular structure cards and interactive charts.
 Open `http://127.0.0.1:8501/`. Use the **top-right app menu → Light, Dark or
 System** to choose an appearance. System follows your browser's preference;

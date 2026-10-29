@@ -21,7 +21,7 @@ from cvti.registry import json_hash
 
 
 def select_page(app, page):
-    next(radio for radio in app.sidebar.radio if page in radio.options).set_value(page).run(timeout=20)
+    next(radio for radio in app.sidebar.radio if radio.format_func(page) in radio.options).set_value(page).run(timeout=20)
     assert [radio.value for radio in app.sidebar.radio if radio.value is not None] == [page]
     assert app.query_params["view"] == page
 

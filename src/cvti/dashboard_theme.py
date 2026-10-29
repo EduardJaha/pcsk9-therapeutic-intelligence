@@ -34,10 +34,13 @@ GRAPHITE_STYLE = """<style>
 [data-testid="stSidebar"] [data-testid="stRadio"] label:has(input:checked) { background:var(--lab-soft); }
 [data-testid="stSidebar"] [data-testid="stRadio"] label:has(input:checked) p { color:var(--lab-accent); }
 [data-testid="stSidebar"] [data-testid="stRadio"] label p { font-size:13px; }
+[data-testid="stSidebar"] [data-testid="stRadioOption"] > div > div:first-child { display:none; }
+[data-testid="stSidebar"] [data-testid="stRadioOption"] p { display:flex; align-items:center; gap:7px; }
+[data-testid="stSidebar"] [data-testid="stRadioOption"] [role="img"] { font-size:18px; flex-shrink:0; }
+[data-testid="stSidebar"] [data-testid="stRadio"] label:has(input:focus-visible) { outline:2px solid var(--lab-accent); outline-offset:2px; }
 .brand { display:flex; align-items:center; gap:9px; margin:0; }
 .brand-mark { background:var(--lab-accent); color:var(--lab-on-accent); border-radius:7px; padding:6px 8px; font-size:17px; font-weight:700; }
 .brand-name { font-size:19px; line-height:1.2; font-weight:600; letter-spacing:-.6px; white-space:nowrap; }
-.brand-caption { font-size:11px; color:var(--lab-muted); margin-top:3px; }
 .nav-caption { color:var(--lab-muted); font-size:11px; letter-spacing:1.1px; font-weight:600; margin:14px 0 6px; }
 .sidebar-note { background:var(--lab-soft); border:1px solid var(--lab-line); padding:12px; border-radius:7px; font-size:12px; color:var(--lab-muted); line-height:1.6; }
 .sidebar-note strong { color:var(--lab-ink); display:block; margin-bottom:4px; }

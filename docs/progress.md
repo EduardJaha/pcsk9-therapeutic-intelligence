@@ -1,5 +1,14 @@
 # Roadmap progress — local release 0.2
 
+## Sidebar icons and header cleanup — 29 October 2026
+
+Removed the Graphite Studio subtitle from the app header. Each sidebar page now
+has a Material icon beside its text label; the selected-page highlight, keyboard
+focus, grouped navigation and bookmarked page names remain available.
+The affected offline dashboard, discovery and literature tests passed: **33 passed**
+with the existing Starlette/httpx deprecation warning. Browser verification checked
+the header, icons and page switching. No scientific scoring or data rules changed.
+
 ## Graphite Studio appearance — 29 October 2026
 
 Implemented Graphite Studio with native light/dark palettes and the app menu's

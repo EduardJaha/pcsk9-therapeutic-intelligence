@@ -252,7 +252,7 @@ def test_literature_dashboard_empty_and_populated_navigation(workspace, monkeypa
     monkeypatch.setattr(httpx, 'Client', LocalAPI)
     monkeypatch.setenv('WORKSPACE_STATE_DIR', str(tmp_path / 'workspaces'))
     app = AppTest.from_file(str(Path(__file__).parents[1] / 'dashboard.py')).run(timeout=20)
-    radio = next(r for r in app.sidebar.radio if 'Literature evidence' in r.options)
+    radio = next(r for r in app.sidebar.radio if r.format_func('Literature evidence') in r.options)
     radio.set_value('Literature evidence').run(timeout=20)
     assert not app.exception and not app.error
     assert app.text_input[0].value == ''
