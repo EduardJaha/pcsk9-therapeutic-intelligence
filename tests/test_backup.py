@@ -37,6 +37,11 @@ def test_sqlite_backup_relocation_and_tamper(tmp_path):
     url = f'sqlite:///{directory / "database.db"}'
     run, prediction, report = _prepare(url, directory)
     (directory / 'snapshot.json').write_text('{"source":"test"}')
+    for reserved in ('runtime', 'ollama', 'assistant-training', 'workspaces', 'backups'):
+        (directory / reserved).mkdir()
+        (directory / reserved / 'runtime-metadata.json').write_text('{"not":"research input"}')
+    (directory / 'research').mkdir()
+    (directory / 'research' / 'retained.json').write_text('{"source":"retained research input"}')
     archive = tmp_path / 'backup.zip'
     with pytest.raises(ValueError, match='services-stopped'):
         create_backup(url, directory / 'models', archive)
@@ -46,6 +51,8 @@ def test_sqlite_backup_relocation_and_tamper(tmp_path):
     create_backup(url, directory / 'models', archive, services_stopped=True)
     manifest = inspect_backup(archive)
     assert 'sources/snapshot.json' in manifest['files']
+    assert 'sources/research/retained.json' in manifest['files']
+    assert not any('runtime-metadata.json' in name for name in manifest['files'])
     destination = tmp_path / 'recovered'
     restore_backup(archive, destination, services_stopped=True)
     settings = Settings(_env_file=destination / '.env.restored')
@@ -96,6 +103,32 @@ def test_postgres_backup_restore(tmp_path):
             for name in names:
                 connection.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
         admin.dispose()
+
+
+def test_sqlite_snapshot_connections_are_closed(tmp_path, monkeypatch):
+    import sqlite3
+    from cvti import backup
+    url = f'sqlite:///{tmp_path / "original.db"}'
+    _prepare(url, tmp_path)
+    original_connect = sqlite3.connect
+    opened = []
+
+    class SnapshotConnection(sqlite3.Connection):
+        was_closed = False
+
+        def close(self):
+            self.was_closed = True
+            super().close()
+
+    def tracked_connect(*args, **kwargs):
+        connection = original_connect(*args, **kwargs, factory=SnapshotConnection)
+        opened.append(connection)
+        return connection
+
+    monkeypatch.setattr(backup.sqlite3, 'connect', tracked_connect)
+    create_backup(url, tmp_path / 'models', tmp_path / 'snapshot.zip', services_stopped=True)
+    assert len(opened) == 2
+    assert all(connection.was_closed for connection in opened)
 
 
 def test_backup_rejects_changed_artifacts_and_unsafe_member_paths(tmp_path):
