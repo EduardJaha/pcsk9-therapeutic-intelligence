@@ -125,14 +125,14 @@ def overview(summary, runs, versions):
     retained = version["records"] if version and version["status"] == "ready" else 0
     columns = st.columns(4)
     with columns[0]:
-        stat("Retained real activities", retained, "After review and selection rules", "#269f99")
+        stat("Retained real activities", retained, "After review and selection rules", "var(--lab-green)")
     with columns[1]:
         stat("Assays reviewed", sum(a["decision"] != "pending" for a in assays), f"{len(assays)} assays in the current snapshot")
     with columns[2]:
         stat("Latest model molecules", latest["n_molecules"] if latest else "—",
              source_name(latest["data_source"]) if latest else "No model trained yet")
     with columns[3]:
-        stat("Saved predictions", summary.get("predictions", 0), f"{summary.get('experiments', 0)} recorded experiments", "#4c80d9")
+        stat("Saved predictions", summary.get("predictions", 0), f"{summary.get('experiments', 0)} recorded experiments")
     if not retained:
         st.info("Real-data training is awaiting approved, comparable assay measurements. The synthetic demo is available for exploring the workflow.")
     left, right = st.columns([1.65, 1], gap="medium")
@@ -151,10 +151,10 @@ def overview(summary, runs, versions):
                       for decision in ["include", "exclude", "pending"]]
             donut = alt.Chart(alt.Data(values=counts)).mark_arc(innerRadius=62, outerRadius=89).encode(
                 theta="Assays:Q", color=alt.Color("Decision:N",
-                    scale=alt.Scale(domain=["Include", "Exclude", "Pending"], range=["#269f99", "#b8b1e4", "#e2ba72"]),
+                    scale=alt.Scale(domain=["Include", "Exclude", "Pending"], range=[COLORS[0], COLORS[5], COLORS[2]]),
                     legend=alt.Legend(orient="bottom", title=None)), tooltip=["Decision:N", "Assays:Q"])
             text = alt.Chart(alt.Data(values=[{"label": str(len(assays))}])).mark_text(
-                fontSize=34, fontWeight=600, color="#514c74").encode(text="label:N")
+                fontSize=34, fontWeight=600).encode(text="label:N")
             st.altair_chart((donut + text).properties(height=230).configure_view(stroke=None), width="stretch")
             st.caption(f"Dataset {version['id']} · {retained} retained activities. Review decisions are preserved with their source documents.")
         else:
@@ -341,7 +341,8 @@ def assay_page(versions):
     if not payload:
         return
     assays = payload["assays"]
-    for column, decision, color in zip(st.columns(3), ["include", "exclude", "pending"], ["#269f99", "#ad7188", "#d4a246"]):
+    for column, decision, color in zip(st.columns(3), ["include", "exclude", "pending"],
+                                       ["var(--lab-green)", "var(--lab-rose)", "var(--lab-amber)"]):
         with column:
             stat(decision.capitalize(), sum(a["decision"] == decision for a in assays), "Recorded assay decisions", color)
     st.caption(f"Snapshot retrieved: {version['stats'].get('snapshot_retrieved_at') or 'not recorded'}. Inclusion does not guarantee that activities survived every selection rule.")
@@ -787,9 +788,35 @@ summary = call("GET", "/summary", quiet=True)
 connected = summary is not None
 runs = (call("GET", "/experiments") or []) if connected else []
 versions = (call("GET", "/dataset-versions") or []) if connected else []
+initial_page = st.query_params.get("view", "Overview")
+st.session_state.setdefault("workspace_nav", initial_page if initial_page in PAGES else "Overview")
+if st.session_state["workspace_nav"] not in PAGES:
+    st.session_state["workspace_nav"] = "Overview"
+
+
+def update_view(group_key):
+    selected = st.session_state[group_key]
+    if selected in PAGES:
+        st.session_state["workspace_nav"] = selected
+        st.query_params["view"] = selected
+
+
+quick_pages = ["Molecule dossier", "Literature evidence", "Research runs"]
+st.session_state["studio_quick_nav"] = (
+    st.session_state["workspace_nav"] if st.session_state["workspace_nav"] in quick_pages else None
+)
+with st.container(key="studio_header"):
+    brand_column, navigation_column = st.columns([1, 3], vertical_alignment="center")
+    with brand_column:
+        st.markdown('<div class="brand"><div class="brand-mark">P9</div><div>'
+                    '<div class="brand-name">PCSK9 Lab</div>'
+                    '<div class="brand-caption">Graphite Studio</div></div></div>', unsafe_allow_html=True)
+    with navigation_column:
+        st.pills("Quick navigation", quick_pages, selection_mode="single", key="studio_quick_nav",
+                 on_change=update_view, args=("studio_quick_nav",), label_visibility="collapsed", wrap=True)
+
 with st.sidebar:
-    st.markdown('<div class="brand"><div class="brand-mark">P9</div><div><div class="brand-name">PCSK9 Lab</div>'
-                '<div class="brand-caption">RESEARCH WORKBENCH</div></div></div>', unsafe_allow_html=True)
+    st.caption("LOCAL RESEARCH WORKSPACE")
     projects = call('GET', '/projects') or [{'id': 1, 'name': 'Local project'}]
     project_ids = [p['id'] for p in projects]
     if st.session_state.get('active_project', 1) not in project_ids:
@@ -800,15 +827,6 @@ with st.sidebar:
                               on_change=clear_molecule_workspace,
                               format_func=lambda value: next(p['name'] for p in projects if p['id'] == value))
     runs = [run for run in runs if run.get('project_id', 1) == project_id]
-    initial_page = st.query_params.get("view", "Overview")
-    st.session_state.setdefault("workspace_nav", initial_page if initial_page in PAGES else "Overview")
-    if st.session_state["workspace_nav"] not in PAGES:
-        st.session_state["workspace_nav"] = "Overview"
-    def update_view(group_key):
-        selected = st.session_state[group_key]
-        if selected in PAGES:
-            st.session_state["workspace_nav"] = selected
-            st.query_params["view"] = selected
     page = st.session_state["workspace_nav"]
     for group, group_pages in PAGE_GROUPS.items():
         st.markdown(f'<div class="nav-caption">{escape(group.upper())}</div>', unsafe_allow_html=True)
@@ -832,6 +850,7 @@ with st.sidebar:
         return f"{'Demo' if run['data_source'] == 'synthetic_fixture' else 'ChEMBL'} · experiment {value}"
     model_id = st.selectbox("Scoring model", options, key="scoring_model", format_func=model_label, label_visibility="collapsed")
     st.caption("Used explicitly for profiles, molecule comparisons and candidate previews.")
+    st.caption("Appearance: open the top-right app menu and choose System, Light or Dark.")
     st.markdown('<div class="sidebar-note"><strong>Evidence before confidence</strong>'
                 'All model outputs are research hypotheses. Synthetic scores demonstrate software behavior only.</div>', unsafe_allow_html=True)
     st.link_button("Open API reference", API_REFERENCE_URL, width="stretch")

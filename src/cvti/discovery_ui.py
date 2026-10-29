@@ -5,7 +5,7 @@ import altair as alt
 import streamlit as st
 
 from cvti.batches import csv_export
-from cvti.dashboard_ui import hero
+from cvti.dashboard_ui import COLORS, hero
 from cvti.discovery_chemistry import TRANSFORMS
 
 PAGES = ['Molecule dossier','Endpoint predictions','Target biology','Structure & docking',
@@ -15,7 +15,12 @@ PAGES = ['Molecule dossier','Endpoint predictions','Target biology','Structure &
 def structure_view(atoms, bonds, key='structure'):
     """A self-contained, offline canvas viewer; no CDN or structure transmission."""
     data = json.dumps({'atoms': atoms,'bonds': bonds}).replace('<','\\u003c')
-    st.iframe('''<style>body{margin:0;font:13px system-ui;color:#514c74}canvas{width:100%;height:350px;background:#f6f5fc;border-radius:12px;touch-action:none}p{margin:8px}</style>
+    st.iframe('''<style>
+:root{color-scheme:light dark;--viewer-bg:#f3f6f8;--viewer-ink:#243542;--viewer-bond:#738590;--viewer-outline:#fff}
+:root[data-appearance="dark"]{color-scheme:dark;--viewer-bg:#1b232c;--viewer-ink:#e8edf2;--viewer-bond:#a6b6c3;--viewer-outline:#35414d}
+body{margin:0;font:13px system-ui;color:var(--viewer-ink);background:var(--viewer-bg)}
+canvas{display:block;width:100%;height:350px;background:var(--viewer-bg);border-radius:7px;touch-action:none}p{margin:8px}
+</style>
 <canvas id="mol" aria-label="Interactive molecular conformer"></canvas><p>Drag to rotate · scroll to zoom · generated coordinates in Å</p>
 <script>const d='''+data+''';const c=document.getElementById('mol'),ctx=c.getContext('2d');
 let rx=.3,ry=.4,zoom=1,drag=null;let a=d.atoms.map(x=>({...x,xyz:[...x.xyz]}));
@@ -24,9 +29,16 @@ a.forEach(x=>x.xyz=x.xyz.map((v,k)=>v-center[k]));let extent=Math.max(3,...a.map
 function draw(){c.width=c.clientWidth*2;c.height=700;ctx.clearRect(0,0,c.width,c.height);
 let scale=Math.min(c.width,650)/extent/2.6*zoom;
 let p=a.map(x=>{let [u,v,w]=x.xyz;let q=u*Math.cos(ry)+w*Math.sin(ry),z=-u*Math.sin(ry)+w*Math.cos(ry);return {x:c.width/2+q*scale,y:350+(v*Math.cos(rx)-z*Math.sin(rx))*scale,z:v*Math.sin(rx)+z*Math.cos(rx),e:x.element}});
-ctx.lineWidth=5;ctx.strokeStyle='#aaa8bc';d.bonds.forEach(b=>{ctx.beginPath();ctx.moveTo(p[b[0]].x,p[b[0]].y);ctx.lineTo(p[b[1]].x,p[b[1]].y);ctx.stroke()});
-p.sort((a,b)=>a.z-b.z).forEach(x=>{ctx.fillStyle=({C:'#656579',O:'#e35465',N:'#537bdf',S:'#d9ba3b',F:'#55b895',Cl:'#55b895',H:'#eeeaf5'})[x.e]||'#b48bd0';ctx.beginPath();ctx.arc(x.x,x.y,x.e==='H'?6:11,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=1;ctx.stroke()})}
-c.onpointerdown=e=>{drag=[e.clientX,e.clientY];c.setPointerCapture(e.pointerId)};c.onpointermove=e=>{if(drag){ry+=(e.clientX-drag[0])*.01;rx+=(e.clientY-drag[1])*.01;drag=[e.clientX,e.clientY];draw()}};c.onpointerup=()=>drag=null;c.onwheel=e=>{e.preventDefault();zoom=Math.max(.3,Math.min(4,zoom*Math.exp(-e.deltaY*.001)));draw()};new ResizeObserver(draw).observe(c);draw();</script>''',height=395,alt='Interactive molecular coordinates')
+const theme=getComputedStyle(document.documentElement);ctx.lineWidth=5;ctx.strokeStyle=theme.getPropertyValue('--viewer-bond');d.bonds.forEach(b=>{ctx.beginPath();ctx.moveTo(p[b[0]].x,p[b[0]].y);ctx.lineTo(p[b[1]].x,p[b[1]].y);ctx.stroke()});
+p.sort((a,b)=>a.z-b.z).forEach(x=>{ctx.fillStyle=({C:'#738590',O:'#e35465',N:'#537bdf',S:'#d9ba3b',F:'#55b895',Cl:'#55b895',H:'#eeeaf5'})[x.e]||'#b48bd0';ctx.beginPath();ctx.arc(x.x,x.y,x.e==='H'?6:11,0,Math.PI*2);ctx.fill();ctx.strokeStyle=theme.getPropertyValue('--viewer-outline');ctx.lineWidth=1;ctx.stroke()})}
+c.onpointerdown=e=>{drag=[e.clientX,e.clientY];c.setPointerCapture(e.pointerId)};c.onpointermove=e=>{if(drag){ry+=(e.clientX-drag[0])*.01;rx+=(e.clientY-drag[1])*.01;drag=[e.clientX,e.clientY];draw()}};c.onpointerup=()=>drag=null;c.onwheel=e=>{e.preventDefault();zoom=Math.max(.3,Math.min(4,zoom*Math.exp(-e.deltaY*.001)));draw()};
+// The offline srcdoc iframe does not inherit explicit menu appearance. Observe
+// only the containing app's scheme; no structures or messages leave the viewer.
+let host=null;try{host=parent.document.querySelector('.stApp')}catch{}
+const preference=matchMedia('(prefers-color-scheme:dark)');
+function syncAppearance(){document.documentElement.dataset.appearance=host?getComputedStyle(host).colorScheme:(preference.matches?'dark':'light');draw()}
+if(host)new MutationObserver(syncAppearance).observe(host,{attributes:true,attributeFilter:['class','style']});
+preference.addEventListener('change',syncAppearance);new ResizeObserver(draw).observe(c);syncAppearance();</script>''',height=395,alt='Interactive molecular coordinates')
 
 
 def export_result(result, name):
@@ -50,24 +62,35 @@ def use_structure(smiles, page):
 
 
 def dossier_page(project_id,call):
-    hero('A connected molecule dossier','Inspect chemistry, generate a conformer and carry the structure into endpoint predictions or docking.',
+    hero('Molecule dossier','Inspect chemistry, generate a conformer and carry the structure into endpoint predictions or docking.',
          ['Local calculations','Source-aware results','No composite success score'])
-    with st.form('discovery_dossier'):
-        smiles = st.text_input('Dossier SMILES',value=st.session_state.get('discovery_active_smiles',''),max_chars=1000)
-        save = st.checkbox('Save this dossier to research history')
-        submitted = st.form_submit_button('Build dossier',type='primary')
-    if submitted:
-        st.session_state.pop('discovery_conformer_result',None)
-        analyze(call,project_id,'dossier',{'smiles':smiles},save)
+    input_column, preview_column = st.columns(2)
+    with input_column, st.container(border=True, key='panel_dossier_input'):
+        st.subheader('Structure input')
+        with st.form('discovery_dossier'):
+            smiles = st.text_input('Dossier SMILES',value=st.session_state.get('discovery_active_smiles',''),max_chars=1000,
+                                   placeholder='Paste a molecular SMILES string')
+            save = st.checkbox('Save this dossier to research history')
+            submitted = st.form_submit_button('Build dossier',type='primary')
+        st.caption('Calculated properties describe a structure. They do not establish biological activity or clinical benefit.')
+        if submitted:
+            st.session_state.pop('discovery_conformer_result',None)
+            analyze(call,project_id,'dossier',{'smiles':smiles},save)
     saved = st.session_state.get('discovery_dossier_result')
+    with preview_column, st.container(border=True, key='panel_dossier_preview'):
+        st.subheader('Structure preview')
+        if saved:
+            st.image(saved['result']['svg'],width='stretch')
+            st.code(saved['result']['canonical_smiles'])
+        else:
+            st.markdown('<div class="studio-empty"><strong>No structure entered</strong>'
+                        '<span>Your molecular drawing will appear here.</span></div>', unsafe_allow_html=True)
     if not saved:
         st.info('Enter a molecule to begin. Ring-containing and acyclic small molecules are supported here.')
         return
     result = saved['result']
     left,right = st.columns([1,1.5])
     with left:
-        st.image(result['svg'],width='stretch')
-        st.code(result['canonical_smiles'])
         for warning in result['chemistry']['warnings']: st.warning(warning)
         for page in ('Endpoint predictions','Structure & docking','SAR & design'):
             st.button(f'Use this molecule in {page}',on_click=use_structure,args=(result['canonical_smiles'],page),width='stretch')
@@ -234,7 +257,7 @@ def assay_page(project_id,call):
             c.metric('R²',f"{r['r_squared']:.3f}")
             for warning in r['warnings']: st.warning(warning)
             points=alt.Chart(alt.Data(values=r['raw'])).mark_circle(size=65).encode(x=alt.X('concentration:Q',scale=alt.Scale(type='log')),y='response:Q',tooltip=['concentration:Q','response:Q','residual:Q'])
-            line=alt.Chart(alt.Data(values=r['curve'])).mark_line(color='#7563d8').encode(x=alt.X('concentration:Q',scale=alt.Scale(type='log')),y='response:Q')
+            line=alt.Chart(alt.Data(values=r['curve'])).mark_line(color=COLORS[0]).encode(x=alt.X('concentration:Q',scale=alt.Scale(type='log')),y='response:Q')
             st.altair_chart(points+line,width='stretch')
             st.caption(r['notice']);st.json(r['assay_context']);export_result(saved,'dose-response')
     with plate_tab:

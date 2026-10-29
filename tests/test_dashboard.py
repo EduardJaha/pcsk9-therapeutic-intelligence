@@ -321,3 +321,49 @@ def test_workspace_storage_failure_keeps_dashboard_usable(tmp_path, monkeypatch)
     app = AppTest.from_file(str(Path(__file__).parents[1] / 'dashboard.py')).run(timeout=20)
     assert not app.exception and not app.error
     assert any('could not be saved locally' in warning.value for warning in app.warning)
+
+
+def test_studio_navigation_preserves_structure_and_refresh_context(tmp_path, monkeypatch):
+    """Toolbar/sidebar agree; navigation never submits a molecule or writes research."""
+    dashboard = str(Path(__file__).parents[1] / 'dashboard.py')
+    with TestClient(create_app(f'sqlite:///{tmp_path / "studio.db"}', str(tmp_path / 'models'))) as api:
+        requests = []
+
+        class LocalAPI:
+            def __init__(self, **kwargs): pass
+            def __enter__(self): return self
+            def __exit__(self, *args): pass
+            def request(self, method, path, **kwargs):
+                requests.append((method, path))
+                return api.request(method, path, **kwargs)
+
+        monkeypatch.setattr(httpx, 'Client', LocalAPI)
+        monkeypatch.delenv('API_URL', raising=False)
+        app = AppTest.from_file(dashboard).run(timeout=20)
+        for page in ['Molecule dossier', 'Literature evidence', 'Research runs']:
+            requests.clear()
+            app.button_group(key='studio_quick_nav').set_value(page).run(timeout=20)
+            assert not app.exception and not app.error
+            assert app.session_state['workspace_nav'] == page
+            assert app.query_params['view'] == page
+            assert [r.value for r in app.sidebar.radio if r.value is not None] == [page]
+            assert all(method == 'GET' for method, _ in requests)
+        select_page(app, 'Molecule profile')
+        assert app.button_group(key='studio_quick_nav').value is None
+        next(f for f in app.text_input if f.label == 'SMILES').set_value('Oc1ccccc1')
+        next(b for b in app.button if b.label == 'Build molecule profile').click().run(timeout=20)
+        profile = app.session_state['molecule_profile']
+        app.button_group(key='studio_quick_nav').set_value('Molecule dossier').run(timeout=20)
+        assert next(f for f in app.text_input if f.label == 'Dossier SMILES').value == ''
+        select_page(app, 'Molecule profile')
+        assert app.session_state['molecule_profile'] == profile
+        assert next(f for f in app.text_input if f.label == 'SMILES').value == 'Oc1ccccc1'
+        fresh = AppTest.from_file(dashboard)
+        fresh.query_params.update(app.query_params)
+        requests.clear()
+        fresh.run(timeout=20)
+        assert not fresh.exception and not fresh.error
+        assert fresh.session_state['molecule_profile'] == profile
+        assert all(method == 'GET' for method, _ in requests)
+        assert api.get('/summary').json()['predictions'] == 0
+        assert api.get('/summary').json()['measurements'] == 0

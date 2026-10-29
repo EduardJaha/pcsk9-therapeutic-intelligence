@@ -1,10 +1,42 @@
+# Graphite Studio. Switch System / Light / Dark in the top-right app menu.
 [theme]
-base = "light"
-primaryColor = "#6854d8"
-backgroundColor = "#f3f5fa"
+base = "dark"
+font = "sans-serif"
+baseFontSize = 15
+baseRadius = "0.45rem"
+buttonRadius = "0.35rem"
+showWidgetBorder = true
+showSidebarBorder = true
+headingFontWeights = [600, 600, 600, 600, 600, 600]
+chartCategoricalColors = ["#159c90", "#668ce5", "#c7923d", "#b77cbf", "#779e55", "#dc7585"]
+
+[theme.dark]
+primaryColor = "#7be4d1"
+backgroundColor = "#13191f"
+secondaryBackgroundColor = "#1b232c"
+textColor = "#e8edf2"
+borderColor = "#35414d"
+codeBackgroundColor = "#1b232c"
+dataframeHeaderBackgroundColor = "#26323e"
+dataframeHeaderTextColor = "#b9c8d4"
+
+[theme.dark.sidebar]
+backgroundColor = "#171f27"
+secondaryBackgroundColor = "#232e38"
+
+[theme.light]
+primaryColor = "#087e83"
+backgroundColor = "#f3f6f8"
 secondaryBackgroundColor = "#ffffff"
-textColor = "#20273c"
-font = "sans serif"
+textColor = "#243542"
+borderColor = "#d5dfe5"
+codeBackgroundColor = "#eaf0f3"
+dataframeHeaderBackgroundColor = "#eaf0f3"
+dataframeHeaderTextColor = "#4c616e"
+
+[theme.light.sidebar]
+backgroundColor = "#eaf0f3"
+secondaryBackgroundColor = "#ffffff"
 
 [browser]
 gatherUsageStats = false
