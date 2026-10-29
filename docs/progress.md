@@ -1,5 +1,53 @@
 # Roadmap progress — local release 0.2
 
+## Literature evidence workflow — 29 October 2026
+
+Implemented on `codex/literature-assay-pipeline`; see the
+[workflow guide](literature-evidence.md). Bounded PubMed/Europe PMC searches,
+repository XML and current public PMC dataset PDF retrieval, section/page/table
+locators, local quote-selection assay drafts, conservative validation flags,
+append-only attributed review events and checksummed assessments are available
+through FastAPI and the **Literature evidence** dashboard page. The additive
+`a62e8b75c319` revision preserves existing tables; PDF parsing has byte/page/time
+bounds. Source records remain separate from approved measurements and training.
+
+Actual public-source work used an isolated ignored database under
+`data/literature/2026-10-29-evidence/`; the main workspace was not migrated or
+populated. The targeted search returned 15 PubMed records and 131 Europe PMC
+hits (first 50 retained). Four relevant studies yielded full-text XML and PDFs;
+other named leads remained abstract-only. A separate source register preserves
+29 unreviewed numerical source/figure transcriptions and their hashes/locators.
+The nanobody Figure 5 was visually inspected; dosing-unit reconciliation remains
+open. The 2026 Zhu repository XML is abstract-only in this run, so additional
+table values/methods in the user's draft remain explicitly unverified locally.
+
+Live local-model trials exposed duplicated drafts, incorrect classifications,
+missing facts, schema failures and timeouts. These are preserved, not scientific
+successes. Mechanical checks now reject duplicate/concretely unsupported drafts
+and recheck historical outputs during report generation. Source transcriptions
+are clearly separated from local-model output. Comprehensive accurate LLM
+extraction and qualified scientific acceptance have **not** been demonstrated.
+No real assay approval, pooled dataset, training or model validation was produced.
+
+Offline verification before final follow-up checks: **130 passed, 4 skipped**;
+PostgreSQL was not configured. New tests exercise provider response provenance,
+reference-ID isolation, dates/caps/failures, PDF/HTML/XML handling, current PMC
+dataset access, source quotation isolation, model failures/replacement, review
+history, raw-byte preservation, report checksums and empty/populated navigation.
+No live browser session against the new page was exercised. Existing running
+services need a restart to load the new code.
+
+Final follow-up checks: **18 passed, 4 PostgreSQL cases skipped** for the
+literature and backend tests, including duplicate/concrete-evidence rejection
+and JSON/binary preservation. `git diff --check` passed. Earlier model outputs
+are revalidated on report generation without editing their historical payloads.
+
+Delivery verification on 29 October: the final full offline suite passed
+(**132 passed, 5 skipped**). All five skips require an unconfigured PostgreSQL
+test database. The existing Starlette/httpx deprecation warning remains.
+The staged diff check passed; research databases, sources, generated reports,
+model weights and credentials are excluded from the commit.
+
 Updated 2026-10-28. Task definitions: [approved roadmap](roadmap.md). User decisions: **no qualified reviewer yet; keep this release local with no hosting cost**. These decisions gate real-data approval and hosted/commercial work. Software acceptance and scientific evidence are reported separately.
 
 ## Broader local training and program verification — 28 October 2026

@@ -23,6 +23,12 @@ See the [approved implementation roadmap](docs/roadmap.md), [verified progress](
 
 ## Research workbench
 
+The [literature evidence workflow](docs/literature-evidence.md) adds bounded
+PubMed/Europe PMC searches, preserved full-text/PDF methods and tables,
+source-bound local LLM assay drafts, validation flags, append-only review
+events and traceable assessments. Open **Literature evidence** under
+**Assays & evidence**. Drafts remain outside training and scientific approval.
+
 The [integrated discovery workbench](docs/discovery-workbench.md) adds a rich
 molecule dossier and offline 3D viewer, nine experimental pretrained ADMET
 endpoints, public target dossiers, local Vina docking, dose-response/plate

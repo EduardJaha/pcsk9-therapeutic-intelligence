@@ -62,6 +62,19 @@ def test_registry_and_saved_view_on_each_backend(backend_url, tmp_path):
         assert detail['compound']['name'] == 'Preserved candidate'
 
 
+def test_literature_binary_and_json_preservation_on_each_backend(backend_url, tmp_path):
+    from cvti.db import session_factory
+    from cvti import literature
+    with TestClient(create_app(backend_url, str(tmp_path / 'models'))) as client:
+        engine = make_engine(backend_url)
+        with session_factory(engine)() as session:
+            record = literature.save(session, 1, 'search', {'query': 'Synthetic backend check'}, content=b'original response')
+            identifier = record.id
+        engine.dispose()
+        assert client.get(f'/literature/records/{identifier}/original').content == b'original response'
+        assert client.get(f'/literature/records/{identifier}').json()['payload']['query'] == 'Synthetic backend check'
+
+
 def test_supported_migrations_preserve_rows(backend_url):
     config = Config(str(Path(__file__).parents[1] / 'alembic.ini'))
     config.attributes['database_url'] = backend_url

@@ -23,6 +23,7 @@ dependencies = [
   "psycopg[binary]>=3.2,<4",
   "streamlit>=1.66,<2",
   "altair>=5,<7",
+  "pdfplumber>=0.11,<0.12",
 ]
 
 [project.optional-dependencies]
