@@ -11,6 +11,14 @@ cvti start
 
 `cvti start` owns the API, dashboard and one CSV worker. Ctrl+C stops all three. Existing occupied ports are reported rather than replaced. Use `cvti start --api-port 18000 --dashboard-port 18501` for alternatives. The dashboard API connection is set automatically. Shell helpers: `./scripts/start.sh` (macOS/Linux) or `./scripts/start.ps1` (PowerShell). Both assume the documented `.venv` already exists.
 
+With `ASSISTANT_AUTOSTART=true`, the same command also starts the configured
+local Ollama model store, or reuses an already healthy local runtime with the
+selected model. Set `ASSISTANT_MODEL`, `ASSISTANT_BASE_URL` and
+`ASSISTANT_MODELS_DIR` as described in the [assistant guide](pretrained-assistant.md).
+No model is downloaded automatically. Ctrl+C stops only services started by this
+launcher, including its owned model server. Starting the API/dashboard separately
+does not start Ollama automatically.
+
 `cvti doctor` does not upgrade the schema, load fixtures or save predictions. It reports schema revision, missing/corrupt artifacts and server status. Old models whose hashes were never recorded are labelled legacy-unverified; do not invent missing training history. Run `cvti db upgrade` with servers stopped if an upgrade is needed.
 
 ### Windows startup lock error
@@ -57,7 +65,12 @@ cvti backup inspect ../pcsk9-backup.zip
 cvti backup verify ../pcsk9-backup.zip
 ```
 
-The archive contains the database, every referenced model and retained JSON/CSV/Markdown inputs/exports below the data directory. Dataset snapshots/reviews also reside inside the database. It does not contain `.env`, credentials, the Python environment, arbitrary sibling directories or other backups. Missing model files prevent backup rather than silently creating an incomplete recovery set. Archive checksums detect accidental corruption, not authenticity; restore only your trusted archives. Keep a separate copy on storage you control. GitHub contains source code, not local research records.
+The archive contains the database, every experiment's referenced model and retained JSON/CSV/Markdown research inputs/exports below the data directory. Dataset snapshots/reviews also reside inside the database. Root directories `runtime/`, `ollama/`, `assistant-training/`, `workspaces/` and `backups/`, hidden files/directories and symbolic links are excluded. Keep research inputs outside those reserved directories. It does not contain `.env`, credentials, Python environments, optional scientific checkpoints or assistant weights. Back up assistant runs, model stores and scientific release files separately if they must be preserved; the workspace archive cannot restore these runtimes. Missing experiment model files prevent backup rather than silently creating an incomplete recovery set. Archive checksums detect accidental corruption, not authenticity; restore only your trusted archives. Keep a separate copy on storage you control. GitHub contains source code, not local research records.
+
+Windows snapshots explicitly close both SQLite connections before packaging and
+cleanup. Backup traversal prunes runtime/training caches before scanning files,
+so installing local models does not turn a research backup into an environment
+archive. The relocated restore smoke check verifies the research archive contract.
 
 ## Restore into a different directory
 

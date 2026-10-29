@@ -105,8 +105,8 @@ def _client(settings):
                         trust_env=False, follow_redirects=False)
 
 
-def model_status():
-    settings = get_settings()
+def model_status(settings=None):
+    settings = settings or get_settings()
     result = {'provider': 'ollama_local', 'model': settings.assistant_model,
               'status': 'not_configured', 'ready': False,
               'message': 'Set ASSISTANT_MODEL to an installed local Ollama model.'}

@@ -5,7 +5,67 @@ language model through local Ollama; it does not train an LLM or replace the
 separate molecular prediction models. No external inference provider, API key or
 paid service is required. The default installation leaves inference disabled.
 
+An optional [local Unsloth fine-tuning pilot](local-assistant-training.md) can
+adapt the assistant's answer format and attribution behavior using project
+documentation. It runs separately from the application and molecular models;
+its small generated evaluation does not establish biomedical accuracy.
+
 ## Setup
+
+### This PC: connected local pilot
+
+The 28 October [broader training/evaluation](assistant-evaluation.md) retained
+the same active model: the validation-selected alternative failed the reserved
+test promotion rule. Both models passed eight live API regression checks.
+After restarting the configured Windows runtime, the application returned a
+cited draft with 2,893,860,044 bytes of GPU allocation observed and no change to
+research records. Model identity and supporting evidence hashes were retained.
+
+On 27 October 2026, the trained `pcsk9-assistant:continued-20261027-02` model was connected
+to the application. The local ignored `.env` selects the model, loopback port
+11435, its isolated store and automatic startup. Start the application normally:
+
+```powershell
+.\.venv\Scripts\python.exe -m cvti.cli start
+```
+
+The launcher starts Ollama, the API, dashboard and worker together. Open
+`http://127.0.0.1:8501/`, select **Research assistant**, supply a question and
+selected evidence, and choose **Ask local model**. The page should show the
+model name and `ready`. Ctrl+C stops processes owned by that launcher; an
+already running compatible Ollama service is reused and is not stopped.
+
+Unsloth fine-tuned the Qwen model. Ollama runs its exported weights during normal
+use, using the PC's GPU when available. Answering is inference, not another
+training run. The application selects excerpts, requests a structured answer,
+checks citations and displays the draft. The model unloads after each answer,
+so idle GPU memory can fall even while the assistant remains ready.
+
+A live request through this application's API returned a cited draft from the
+configured model with about 2.9 GB of GPU allocation observed through Ollama.
+Its model digest and evidence hashes were recorded, and the research summary
+was unchanged. This verifies local operation, not biomedical accuracy. The
+small documentation-derived pilot remains experimental.
+
+### Configure automatic startup on another installation
+
+```dotenv
+ASSISTANT_AUTOSTART=true
+ASSISTANT_BASE_URL=http://127.0.0.1:11435
+ASSISTANT_MODEL=your-exact-installed-model:tag
+ASSISTANT_MODELS_DIR=./data/ollama/models
+ASSISTANT_OLLAMA_EXECUTABLE=
+```
+
+Use the existing store containing that exact model. The executable is found
+under `data/ollama/runtime/` or on PATH; set its absolute path if needed. The
+launcher binds only to the configured loopback address, disables cloud inference,
+waits for the selected model and reports missing models or occupied ports.
+It does not download models, replace another service, or select a fallback.
+`ASSISTANT_AUTOSTART=false` retains separate runtime management as described
+below. Run only one application launcher per workspace.
+
+### Separate runtime setup
 
 1. Install [Ollama](https://ollama.com/download) for your operating system.
 2. From this repository, start a dedicated local runtime:
@@ -87,9 +147,10 @@ records and user-pasted claims remain such even if the model repeats them.
 Selected reports describe existing calculations; generated prose does not create
 new measured activities, molecular scores or calibrated confidence.
 
-This release does not search publications automatically, read PDFs, perform
-molecular docking, integrate a pretrained molecular checkpoint, fine-tune a model,
-or establish research performance. PCSK9 real-data training remains dependent on
+The assistant does not search publications automatically, read PDFs, perform
+molecular docking, integrate a pretrained molecular checkpoint, or train a model
+through the application. The separate optional fine-tuning script does not
+establish research performance. PCSK9 real-data training remains dependent on
 compatible reviewed assay data. The next molecular-model milestone is to select
 a licensed checkpoint and benchmark its endpoint/modality coverage and potential
 training-data overlap against the same frozen baseline protocol.

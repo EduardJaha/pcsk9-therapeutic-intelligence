@@ -25,7 +25,9 @@ def main():
     with tempfile.TemporaryDirectory(prefix='cvti-release-') as folder:
         root = Path(folder)
         env = {**os.environ, 'DATABASE_URL': f'sqlite:///{root / "source" / "database.db"}',
-               'ARTIFACT_DIR': str(root / 'source' / 'models')}
+               'ARTIFACT_DIR': str(root / 'source' / 'models'),
+               'WORKSPACE_STATE_DIR': str(root / 'workspaces'),
+               'ASSISTANT_AUTOSTART': 'false', 'ASSISTANT_MODEL': ''}
         def cli(*args, configuration=None):
             process = subprocess.run([sys.executable, '-m', 'cvti.cli', *args], env=configuration or env,
                                      capture_output=True, text=True, timeout=180)

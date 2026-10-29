@@ -1,6 +1,103 @@
 # Roadmap progress — local release 0.2
 
-Updated 2026-10-22. Task definitions: [approved roadmap](roadmap.md). User decisions: **no qualified reviewer yet; keep this release local with no hosting cost**. These decisions gate real-data approval and hosted/commercial work. Software acceptance and scientific evidence are reported separately.
+Updated 2026-10-28. Task definitions: [approved roadmap](roadmap.md). User decisions: **no qualified reviewer yet; keep this release local with no hosting cost**. These decisions gate real-data approval and hosted/commercial work. Software acceptance and scientific evidence are reported separately.
+
+## Broader local training and program verification — 28 October 2026
+
+Two further 1.7B QLoRA candidates completed two epochs/56 optimizer updates each
+on 224 frozen software examples. Validation compared the base, current assistant,
+both adapters and the installed 4B reference using production JSON constraints.
+The 4B reference won validation (24/48) but failed the reserved-test promotion
+rule (16/48 versus the current assistant's 23/48). The current
+`pcsk9-assistant:continued-20261027-02` remains active. No test-driven tuning or
+alternate-candidate deployment followed. See [protocol, results and limitations](assistant-evaluation.md).
+
+Full Windows offline suite: **117 passed, 4 PostgreSQL checks skipped**, with the
+existing Starlette/httpx deprecation warning. The real CLI/API/dashboard/worker
+and relocated backup/restore smoke passed. Windows SQLite snapshot handles now
+close explicitly; backups prune reserved runtime/training directories. Six
+discovery pages were opened with their content headings verified in the browser.
+
+The optional Windows discovery environment was installed from the existing
+lockfile in `data/runtime/discovery/`. Actual ADMET-AI inference returned all
+nine selected endpoints for aspirin in a disposable database. Vina 1.2.7
+completed the version-pinned upstream 1IEP/ABL1 tutorial with three poses; this
+does not validate PCSK9 docking. Scientific smoke checks used CPU while the GPU
+was reserved for language-model work. Open Targets PCSK9 and RCSB retrieval also
+succeeded with raw response hashes. These are integration checks, not measured
+ADMET accuracy, calibration, receptor suitability or clinical validation.
+
+Training examples and smoke records stayed outside the user's research data.
+Real biomedical source leads remain excluded from training pending source,
+reuse-rights and qualified scientific review. No assay approvals or new
+PCSK9 numerical predictor were produced. Historical runs and raw reports remain
+under ignored `data/assistant-training/`; code and reports describe failures as
+well as successes.
+
+Final connection check: API/dashboard/worker are running with the verified
+Windows discovery paths. Registered one experimental installed ADMET release
+metadata record; every research table count stayed unchanged. Both assistant
+models passed 8/8 live application cases. The retained model answered through
+the running API with 2,893,860,044 GPU bytes observed, and the browser displayed
+its cited draft. Dataset/adapter/merged-export checksums and both final
+two-epoch/56-update schedules passed the closing integrity audit. Detailed
+report: `data/assistant-training/2026-10-28-evidence-v4/REPORT.md`.
+
+## Local assistant training pilot — 27 October 2026
+
+Continuation `2026-10-27-continued-02` completed and activated as
+`pcsk9-assistant:continued-20261027-02`. One additional epoch of the same frozen
+200 documentation examples at learning rate 0.00001 brings cumulative exposure
+to two passes/50 optimizer steps. The saved adapter was loaded with a fresh
+optimizer and schedule; parent weights, manifests, original source snapshots,
+dataset assignments and reports remain preserved.
+
+Validation-only selection: loss on the same 16 examples decreased from
+0.0045478423 to 0.0008687152, with all eight selected validation generation
+exercises passing the mechanical checks. Historical test outputs were not used
+to select this continuation. Both exported models passed the same six synthetic
+application regression cases against a disposable database. Eight offline script
+tests passed. A live request after activation returned the new model/digest and
+showed approximately 2.9 GB of GPU allocation, with unchanged research summary.
+No new biomedical examples or scientific accuracy claims were added. The
+original model tag remains available for rollback. Detailed manifests, logs and
+report: `data/assistant-training/2026-10-27-continued-02/`.
+
+Follow-up connection completed: the local ignored `.env` selects the trained
+pilot and its separate local store on port 11435. `cvti start` can now start the
+cloud-disabled Ollama runtime alongside the application, with readiness checks,
+reuse of an existing compatible service and cleanup of owned children. An actual
+request through the running app returned a cited draft with approximately
+2.9 GB of GPU allocation observed; its model/evidence provenance was recorded
+and the research summary stayed unchanged. The model unloads after answers.
+Forty relevant offline checks passed, including new mocked startup, missing
+runtime/model, port ownership and failure-cleanup cases. Scientific validation
+remains unestablished. See the [connected assistant guide](pretrained-assistant.md).
+
+On `codex/local-assistant-finetuning`, the user requested local Unsloth training.
+An optional script prepared documentation-derived software-behavior exercises
+and trained a Qwen3 1.7B QLoRA adapter with the existing local CUDA runtime. The
+application's locked environment and research database were not changed by
+training. All weights, generated examples, source snapshots, logs and reports
+remain under ignored `data/assistant-training/2026-10-27-pilot/`.
+
+- 200 training/16 validation/24 held-out examples, split by source document;
+  one epoch, 25 optimizer steps, 128 seconds of actual training after compilation.
+- Frozen inputs, model/config hashes, exact evaluation assignments, original
+  outputs and adapter/export identity retained. Twelve selected template checks
+  passed. Raw baseline formatting scores are not comparable to the existing
+  app's constrained decoder; no scientific improvement is established.
+- Local Q8_0 export registered in a separate cloud-disabled Ollama store.
+  Six live assistant checks passed against a disposable database, with no change
+  to its research summary. No assay approvals or molecular predictions created.
+- 37 relevant offline tests passed; five script checks passed again after export
+  fixes. Windows compilation/test operations required native execution outside
+  the command sandbox. Initial export failures and successful retries are logged.
+
+See [training and startup instructions](local-assistant-training.md). These are
+programmatically generated examples and small synthetic integration checks,
+not expert-reviewed biomedical training or independent scientific evaluation.
+The real-data review and molecular-model gates below remain in place.
 
 ## KMed-informed discovery workbench — 22 October 2026
 

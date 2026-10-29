@@ -214,6 +214,34 @@ The API documentation lists field schemas; endpoint analyses have strictly
 validated per-kind payloads. API access remains local and unauthenticated,
 consistent with the existing solo-workspace architecture.
 
+## Windows verification on this PC — 28 October 2026
+
+The separate environment at `data/runtime/discovery/Scripts/python.exe` was
+installed from `requirements-discovery.lock`. It contains ADMET-AI 2.0.1 and
+Meeko 0.8.0; the ten installed ADMET checkpoints are pinned in
+`data/models/admet-windows-20261028.json`. Official Windows Vina 1.2.7 is at
+`data/runtime/vina/vina_1.2.7.exe`. The ignored `.env` now points the API and
+worker to these files:
+
+```dotenv
+DISCOVERY_PYTHON=./data/runtime/discovery/Scripts/python.exe
+ADMET_MANIFEST=./data/models/admet-windows-20261028.json
+VINA_EXECUTABLE=./data/runtime/vina/vina_1.2.7.exe
+```
+
+Actual local smoke jobs completed in a disposable database: all nine selected
+ADMET endpoints for aspirin and three Vina poses for the upstream 1IEP/ABL1
+tutorial. ADMET used CPU during this verification; ADMET GPU operation was not
+tested. This was not PCSK9 receptor validation or a measured prediction benchmark.
+Open Targets PCSK9 and RCSB retrieval also passed with raw responses preserved.
+
+The running user workspace has only the installed experimental ADMET release
+metadata registered. No example compounds, assays, observations, predictions or
+scientific jobs were added. Checkpoint suitability, training overlap, intended
+reuse terms, independent evaluation and calibration remain unresolved.
+Logs/manifests are in `data/assistant-training/2026-10-27-evidence-v3/`; connected
+runtime and unchanged-table checks are in the subsequent v4 campaign directory.
+
 ## Not claimed by this release
 
 No independently validated PCSK9 predictor, clinical success score, qualified

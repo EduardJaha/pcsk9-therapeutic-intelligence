@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     batch_max_rows: int = Field(default=1000, ge=1, le=10000)
     assistant_base_url: str = "http://127.0.0.1:11434"
     assistant_model: str = ""
+    assistant_autostart: bool = False
+    assistant_models_dir: str = "./data/ollama/models"
+    assistant_ollama_executable: str = ""
     discovery_python: str = './data/runtime/discovery/bin/python'
     admet_manifest: str = './data/models/admet-manifest.json'
     vina_executable: str = './data/runtime/vina'
