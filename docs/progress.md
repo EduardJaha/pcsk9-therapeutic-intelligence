@@ -1,5 +1,28 @@
 # Roadmap progress — local release 0.2
 
+## Graphite Studio appearance — 29 October 2026
+
+Implemented Graphite Studio with native light/dark palettes and the app menu's
+System appearance option. Custom cards, badges, buttons and headings follow
+the live scheme; native tables, controls and charts use the same palette.
+The header provides quick navigation into molecule dossiers, literature and
+research runs while the grouped sidebar retains every page. Dossiers now show
+structure input beside the preview, including an explicit blank state.
+The offline 3D viewer follows explicit appearance changes; 2D drawings retain
+their element colors on white. No scientific scoring or data rules changed.
+
+The full Windows offline suite passed: **133 passed, 5 skipped** (PostgreSQL
+not configured), with the existing Starlette/httpx deprecation warning.
+After the viewer synchronization correction, the affected dashboard/discovery
+checks passed again: **19 passed**. The browser smoke used an isolated local API,
+disposable database and recovery directory under ignored `data/`. It verified
+light/dark colors, remembered appearance after reload, form-button contrast,
+conformer appearance, molecule cards, charts and narrow layouts. No JavaScript
+errors occurred; measurements, experiments and predictions stayed at zero.
+The normal sandbox blocked Windows asyncio's local socketpair, so successful
+runtime/test checks ran with approved local execution outside that sandbox.
+This is interface verification, not new scientific model evidence.
+
 ## Literature evidence workflow — 29 October 2026
 
 Implemented on `codex/literature-assay-pipeline`; see the

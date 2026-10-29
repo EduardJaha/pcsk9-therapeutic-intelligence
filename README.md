@@ -57,7 +57,14 @@ additive database migration; no registry examples are loaded automatically.
 
 For a guided first session, follow the [step-by-step tutorial](docs/tutorial.md). Start with structure profiles and comparisons without adding data; load the synthetic demonstration only when you choose to.
 
-The Streamlit interface uses a sidebar workspace, molecular structure cards and interactive charts. Open `http://127.0.0.1:8501/`. Pages are grouped by use:
+The Streamlit interface uses **Graphite Studio**: compact navigation, mint accents,
+split structure input/preview, molecular structure cards and interactive charts.
+Open `http://127.0.0.1:8501/`. Use the **top-right app menu → Light, Dark or
+System** to choose an appearance. System follows your browser's preference;
+the browser remembers an explicit selection. Native controls, tables, charts and custom panels share the selected
+appearance; 2D chemistry drawings retain their original colors on a white sheet.
+Quick navigation at the top opens **Molecule dossier**, **Literature evidence**
+and **Research runs**. All pages remain available in the grouped sidebar:
 
 | Sidebar group | Pages |
 |---|---|
