@@ -50,6 +50,7 @@ def init_db(engine):
                         "compound_batches", "material_samples", "assay_protocols", "assay_runs",
                         "assay_observations", "registration_imports", "research_views",
                         "discovery_models", "discovery_runs",
+                        "literature_records",
                     }
                 if change[0] == "add_column":
                     return change[2] in {"experiments", "predictions"} and change[3].name in {"dataset_version_id", "provenance_json", "artifact_sha256", "protocol_id", "project_id"}

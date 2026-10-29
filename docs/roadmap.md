@@ -32,6 +32,12 @@ Offline SQLite/PostgreSQL workflow, empty/populated dashboard, restore exercise,
 
 ## B — Real-data feasibility and review
 
+The [literature evidence extension](literature-evidence.md) now supports bounded
+public retrieval, preserved sources and local extraction/review drafts for D1.
+Retrieval and schema checks are software evidence; live local models produced
+incorrect assignments and incomplete outputs. Qualified source review, complete
+methodology and scientific dataset approval remain external D1/D5 requirements.
+
 ### D1 — PCSK9 evidence assessment
 
 Revisit original papers/patents; source-linked register of endpoints/species/constructs/methods/coverage/questions/reuse restrictions; distinguish binding vs expression/secretion/cellular effects. Assess usable counts, classes/scaffolds. **Acceptance:** written continue/separate-endpoint/pause decision. May run alongside A; qualified approval is external.

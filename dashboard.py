@@ -21,7 +21,7 @@ PAGE_GROUPS = {
     "Workspace": ["Overview", "Projects & history", "Research assistant"],
     "Compounds": ["Compound registry", "Molecule dossier", "Molecule profile", "Compare molecules"],
     "Predictions & design": ["Endpoint predictions", "Target biology", "Structure & docking", "SAR & design", "Candidate workbench"],
-    "Assays & evidence": ["Assay records", "Assay analysis", "Assay review", "Datasets & evidence"],
+    "Assays & evidence": ["Literature evidence", "Assay records", "Assay analysis", "Assay review", "Datasets & evidence"],
     "Models & processing": ["Models & reports", "Research runs", "Batch processing"],
 }
 PAGES = [page for pages in PAGE_GROUPS.values() for page in pages]
@@ -851,6 +851,9 @@ elif page in DISCOVERY_PAGES:
     discovery_page(page, project_id, call)
 elif page == 'Research assistant':
     assistant_page(project_id, runs, versions)
+elif page == 'Literature evidence':
+    from cvti.literature_ui import page as literature_page
+    literature_page(project_id, call)
 elif page == "Molecule profile":
     profile_page(model_id, runs)
 elif page == "Compare molecules":

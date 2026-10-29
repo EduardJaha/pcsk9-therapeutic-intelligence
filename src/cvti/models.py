@@ -309,3 +309,18 @@ class DiscoveryRun(Base):
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class LiteratureRecord(Base):
+    """Immutable source/search/extraction/review events; never training inputs."""
+    __tablename__ = 'literature_records'
+    __table_args__ = (Index('ix_literature_project_kind', 'project_id', 'kind'),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey('projects.id'))
+    parent_id: Mapped[int | None] = mapped_column(ForeignKey('literature_records.id'), nullable=True)
+    kind: Mapped[str] = mapped_column(String(20))
+    payload_json: Mapped[dict] = mapped_column(JSON)
+    payload_sha256: Mapped[str] = mapped_column(String(64))
+    content_blob: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    content_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
